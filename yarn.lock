@@ -10774,6 +10774,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"aws-vite-starter@workspace:examples/aws-vite-starter":
+  version: 0.0.0-use.local
+  resolution: "aws-vite-starter@workspace:examples/aws-vite-starter"
+  dependencies:
+    "@uppy/aws-s3": "workspace:*"
+    "@uppy/compressor": "workspace:*"
+    "@uppy/core": "workspace:*"
+    "@uppy/dashboard": "workspace:*"
+    "@uppy/drop-target": "workspace:*"
+    "@uppy/form": "workspace:*"
+    "@uppy/golden-retriever": "workspace:*"
+    "@uppy/image-editor": "workspace:*"
+    "@uppy/remote-sources": "workspace:*"
+    "@uppy/screen-capture": "workspace:*"
+    "@uppy/transloadit": "workspace:*"
+    "@uppy/tus": "workspace:*"
+    "@uppy/webcam": "workspace:*"
+    "@uppy/xhr-upload": "workspace:*"
+    vite: "npm:^5.2.7"
+  languageName: unknown
+  linkType: soft
+
 "aws4@npm:^1.8.0":
   version: 1.13.0
   resolution: "aws4@npm:1.13.0"
@@ -30353,6 +30375,28 @@ __metadata:
   checksum: 10/41bf4d5271c33b5377bf3f9270b347c93a39dec26c00f84e38d942eb1f7c15939ebc228b1b1abaa3b592e2de6f36bb3928edd5f41883ef7297799e6ec79ffaf1
   languageName: node
   linkType: hard
+
+"uppy-aws-test@workspace:packages/@uppy/uppy-aws-test":
+  version: 0.0.0-use.local
+  resolution: "uppy-aws-test@workspace:packages/@uppy/uppy-aws-test"
+  dependencies:
+    "@uppy/aws-s3": "workspace:*"
+    "@uppy/compressor": "workspace:*"
+    "@uppy/core": "workspace:*"
+    "@uppy/dashboard": "workspace:*"
+    "@uppy/drop-target": "workspace:*"
+    "@uppy/form": "workspace:*"
+    "@uppy/golden-retriever": "workspace:*"
+    "@uppy/image-editor": "workspace:*"
+    "@uppy/remote-sources": "workspace:*"
+    "@uppy/screen-capture": "workspace:*"
+    "@uppy/transloadit": "workspace:*"
+    "@uppy/tus": "workspace:*"
+    "@uppy/webcam": "workspace:*"
+    "@uppy/xhr-upload": "workspace:*"
+    vite: "npm:^5.2.7"
+  languageName: unknown
+  linkType: soft
 
 "uppy@workspace:*, uppy@workspace:packages/uppy":
   version: 0.0.0-use.local

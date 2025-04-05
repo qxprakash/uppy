@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Uppy – AWS upload example</title>
+  </head>
+  <body>
+    <h1>AWS upload example</h1>
+    <details open name="uppy">
+      <summary>Sign on the server</summary>
+      <div id="uppy-sign-on-server"></div>
+    </details>
+    <details name="uppy">
+      <summary>Sign on the client (if WebCrypto is available)</summary>
+      <div id="uppy-sign-on-client"></div>
+    </details>
+    <footer>
+      You seeing the simplified example, with a backend that mimicks a
+      Companion-like instance. See
+      <a href="./withCustomEndpoints.html">the custom endpoint example</a> if
+      you need to see how to use one or more custom function for handling
+      communication with the backend.
+    </footer>
+    <noscript>You need JavaScript to run this example.</noscript>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

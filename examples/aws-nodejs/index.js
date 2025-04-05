@@ -3,16 +3,17 @@
 const path = require('node:path')
 const crypto = require('node:crypto')
 const { existsSync } = require('node:fs')
+
+console.log('Loading environment variables...')
 require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') })
 
 const express = require('express')
-
 const app = express()
-
 const port = process.env.PORT ?? 8080
-const accessControlAllowOrigin = '*' // You should define the actual domain(s) that are allowed to make requests.
+const accessControlAllowOrigin = '*'
 const bodyParser = require('body-parser')
 
+console.log('Importing AWS SDK clients...')
 const {
   S3Client,
   AbortMultipartUploadCommand,
@@ -25,6 +26,7 @@ const {
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner')
 const { STSClient, GetFederationTokenCommand } = require('@aws-sdk/client-sts')
 
+console.log('Configuring AWS policy...')
 const policy = {
   Version: '2012-10-17',
   Statement: [
@@ -39,62 +41,59 @@ const policy = {
   ],
 }
 
-/**
- * @type {S3Client}
- */
 let s3Client
-
-/**
- * @type {STSClient}
- */
 let stsClient
-
-const expiresIn = 900 // Define how long until a S3 signature expires.
+const expiresIn = 900
 
 function getS3Client() {
-  s3Client ??= new S3Client({
-    region: process.env.COMPANION_AWS_REGION,
-    credentials: {
-      accessKeyId: process.env.COMPANION_AWS_KEY,
-      secretAccessKey: process.env.COMPANION_AWS_SECRET,
-    },
-    forcePathStyle: process.env.COMPANION_AWS_FORCE_PATH_STYLE === 'true',
-  })
+  if (!s3Client) {
+    console.log('Initializing new S3 client...')
+    console.log(`Using region: ${process.env.COMPANION_AWS_REGION}`)
+    s3Client = new S3Client({
+      region: process.env.COMPANION_AWS_REGION,
+      credentials: {
+        accessKeyId: process.env.COMPANION_AWS_KEY,
+        secretAccessKey: process.env.COMPANION_AWS_SECRET,
+      },
+      forcePathStyle: process.env.COMPANION_AWS_FORCE_PATH_STYLE === 'true',
+    })
+    console.log('S3 client initialized successfully')
+  }
   return s3Client
 }
 
 function getSTSClient() {
-  stsClient ??= new STSClient({
-    region: process.env.COMPANION_AWS_REGION,
-    credentials: {
-      accessKeyId: process.env.COMPANION_AWS_KEY,
-      secretAccessKey: process.env.COMPANION_AWS_SECRET,
-    },
-  })
+  if (!stsClient) {
+    console.log('Initializing new STS client...')
+    stsClient = new STSClient({
+      region: process.env.COMPANION_AWS_REGION,
+      credentials: {
+        accessKeyId: process.env.COMPANION_AWS_KEY,
+        secretAccessKey: process.env.COMPANION_AWS_SECRET,
+      },
+    })
+    console.log('STS client initialized successfully')
+  }
   return stsClient
 }
 
 app.use(bodyParser.urlencoded({ extended: true }), bodyParser.json())
 
 app.get('/s3/sts', (req, res, next) => {
-  // Before giving the STS token to the client, you should first check is they
-  // are authorized to perform that operation, and if the request is legit.
-  // For the sake of simplification, we skip that check in this example.
+  console.log('Received STS token request')
+  console.log('Request IP:', req.ip)
 
   getSTSClient()
     .send(
       new GetFederationTokenCommand({
         Name: '123user',
-        // The duration, in seconds, of the role session. The value specified
-        // can range from 900 seconds (15 minutes) up to the maximum session
-        // duration set for the role.
         DurationSeconds: expiresIn,
         Policy: JSON.stringify(policy),
       }),
     )
     .then((response) => {
-      // Test creating multipart upload from the server — it works
-      // createMultipartUploadYo(response)
+      console.log('STS token generated successfully')
+      console.log('Token expiration:', response.Credentials.Expiration)
       res.setHeader('Access-Control-Allow-Origin', accessControlAllowOrigin)
       res.setHeader('Cache-Control', `public,max-age=${expiresIn}`)
       res.json({
@@ -102,32 +101,58 @@ app.get('/s3/sts', (req, res, next) => {
         bucket: process.env.COMPANION_AWS_BUCKET,
         region: process.env.COMPANION_AWS_REGION,
       })
-    }, next)
+    }, (error) => {
+      console.error('Error generating STS token:', error)
+      next(error)
+    })
 })
+
 const signOnServer = (req, res, next) => {
-  // Before giving the signature to the user, you should first check is they
-  // are authorized to perform that operation, and if the request is legit.
-  // For the sake of simplification, we skip that check in this example.
+  console.log('=== S3 Signing Request Debug ===')
+  console.log('1. Request Method:', req.method)
+  console.log('2. Query Parameters:', req.query)
+  console.log('3. Request Headers:', req.headers)
+  console.log('4. Request URL:', req.url)
+  console.log('5. Raw Body:', req.body)
+  // const Key = `${crypto.randomUUID()}-${req.query.filename}`
+  // console.log('Generated object key:', Key)
+  console.log("request query file type is", req.query.type)
+  let Key;
+  let fileType;
+  if (req.method === 'POST') {
 
-  const Key = `${crypto.randomUUID()}-${req.body.filename}`
-  const { contentType } = req.body
-
+    console.log("request method type POST =======")
+    Key = `${crypto.randomUUID()}-${req.body.filename}`
+    console.log('Generated object key:', Key)
+    console.log("request body file type is", req.body.type)
+    const fileType = req.body.type
+  }else if (req.method === 'GET'){
+    console.log("request method type GET =======")
+    const fileType = req.query.type
+    Key = `${crypto.randomUUID()}-${req.query.filename}`
+    console.log('Generated object key:', Key)
+    console.log("request query file type is", req.query.type)
+  }
   getSignedUrl(
     getS3Client(),
     new PutObjectCommand({
       Bucket: process.env.COMPANION_AWS_BUCKET,
       Key,
-      ContentType: contentType,
+      ContentType: fileType,
     }),
     { expiresIn },
   ).then((url) => {
+    console.log('Generated signed URL successfully')
     res.setHeader('Access-Control-Allow-Origin', accessControlAllowOrigin)
     res.json({
       url,
       method: 'PUT',
     })
     res.end()
-  }, next)
+  }, (error) => {
+    console.error('Error generating signed URL:', error)
+    next(error)
+  })
 }
 app.get('/s3/params', signOnServer)
 app.post('/s3/sign', signOnServer)
@@ -136,32 +161,34 @@ app.post('/s3/sign', signOnServer)
 // You can remove those endpoints if you only want to support the non-multipart uploads.
 
 app.post('/s3/multipart', (req, res, next) => {
-  const client = getS3Client()
-  const { type, metadata, filename } = req.body
-  if (typeof filename !== 'string') {
-    return res
-      .status(400)
-      .json({ error: 's3: content filename must be a string' })
-  }
-  if (typeof type !== 'string') {
-    return res.status(400).json({ error: 's3: content type must be a string' })
-  }
-  const Key = `${crypto.randomUUID()}-${filename}`
+  console.log('Received multipart upload initiation request')
+  console.log('File details:', {
+    filename: req.body.filename,
+    type: req.body.type,
+    metadata: req.body.metadata
+  })
 
-  const params = {
+  const client = getS3Client()
+  const Key = `${crypto.randomUUID()}-${req.body.filename}`
+  console.log('Generated object key:', Key)
+
+  const command = new CreateMultipartUploadCommand({
     Bucket: process.env.COMPANION_AWS_BUCKET,
     Key,
-    ContentType: type,
-    Metadata: metadata,
-  }
-
-  const command = new CreateMultipartUploadCommand(params)
+    ContentType: req.body.type,
+    Metadata: req.body.metadata,
+  })
 
   return client.send(command, (err, data) => {
     if (err) {
+      console.error('Error creating multipart upload:', err)
       next(err)
       return
     }
+    console.log('Multipart upload initiated:', {
+      Key: data.Key,
+      UploadId: data.UploadId
+    })
     res.setHeader('Access-Control-Allow-Origin', accessControlAllowOrigin)
     res.json({
       key: data.Key,
@@ -176,10 +203,17 @@ function validatePartNumber(partNumber) {
   return Number.isInteger(partNumber) && partNumber >= 1 && partNumber <= 10_000
 }
 app.get('/s3/multipart/:uploadId/:partNumber', (req, res, next) => {
+  console.log('Received part signature request:', {
+    uploadId: req.params.uploadId,
+    partNumber: req.params.partNumber,
+    key: req.query.key
+  })
+
   const { uploadId, partNumber } = req.params
   const { key } = req.query
 
   if (!validatePartNumber(partNumber)) {
+    console.error('Invalid part number:', partNumber)
     return res
       .status(400)
       .json({
@@ -206,9 +240,13 @@ app.get('/s3/multipart/:uploadId/:partNumber', (req, res, next) => {
     }),
     { expiresIn },
   ).then((url) => {
+    console.log('Generated part upload URL for part:', partNumber)
     res.setHeader('Access-Control-Allow-Origin', accessControlAllowOrigin)
     res.json({ url, expires: expiresIn })
-  }, next)
+  }, (error) => {
+    console.error('Error generating part upload URL:', error)
+    next(error)
+  })
 })
 
 app.get('/s3/multipart/:uploadId', (req, res, next) => {
@@ -393,7 +431,21 @@ app.get('/uppy.min.css', (req, res) => {
 })
 
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}.`)
-  console.log(`Visit http://localhost:${port}/ on your browser to try it.`)
+  console.log('=================================')
+  console.log(`Server started successfully`)
+  console.log(`Port: ${port}`)
+  console.log(`AWS Region: ${process.env.COMPANION_AWS_REGION}`)
+  console.log(`S3 Bucket: ${process.env.COMPANION_AWS_BUCKET}`)
+  console.log(`Visit: http://localhost:${port}/`)
+  console.log('=================================')
+})
+
+// Add error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Application error:', err)
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: err.message
+  })
 })
 // === </some plumbing to make the example work> ===
