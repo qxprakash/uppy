@@ -2282,6 +2282,7 @@ export class Uppy<
         })
 
         const { fileIDs } = currentUpload
+
         this.log("fileIDs destructured from currentUpload --->", "warning")
         this.log(fileIDs, "warning")
         this.log("uploadID --->", "warning")
@@ -2352,6 +2353,9 @@ export class Uppy<
     }
 
     let { files } = this.getState()
+
+    this.log("files in this.getState inside upload()", "warning")
+    this.log(files, "warning")
 
     // retry any failed files from a previous upload() call
     const filesToRetry = this.#getFilesToRetry()
