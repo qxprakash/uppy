@@ -411,15 +411,35 @@ export default class ThumbnailGenerator<
    * Clean up the thumbnail for a file. Cancel lazy requests and free the thumbnail URL.
    */
   onFileRemoved = (file: UppyFile<M, B>): void => {
+    this.uppy.log("inside onFileRemoved in thumbnail generator", 'warning')
     const index = this.queue.indexOf(file.id)
+    this.uppy.log("index ----->", "warning")
+    this.uppy.log(index, 'warning')
+    this.uppy.log("file.id ----->", 'warning')
+    this.uppy.log(file.id, 'warning')
     if (index !== -1) {
       this.queue.splice(index, 1)
     }
 
+    this.uppy.log("file ----->", 'warning')
+    this.uppy.log(file, 'warning')
+
     // Clean up object URLs.
     if (file.preview && isObjectURL(file.preview)) {
+      this.uppy.log(
+        `[ThumbnailGenerator] Cleaning up object URL for ${file.id}`,
+        'warning',
+      )
+      this.uppy.log("file preview ----->", 'warning')
+      this.uppy.log(file.preview, 'warning')
+      this.uppy.log("isObjectURL ----->", 'warning')
+      this.uppy.log(isObjectURL(file.preview), 'warning')
+      this.uppy.log("URL ----->", 'warning')
+      this.uppy.log(URL, 'warning')
       URL.revokeObjectURL(file.preview)
     }
+
+
   }
 
   onRestored = (): void => {
@@ -433,6 +453,7 @@ export default class ThumbnailGenerator<
   }
 
   onAllFilesRemoved = (): void => {
+    this.uppy.log('inside onAllFilesRemoved in thumbnail generator', 'warning')
     this.queue = []
   }
 

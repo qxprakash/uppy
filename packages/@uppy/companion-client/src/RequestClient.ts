@@ -562,6 +562,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
         }
 
         const onFileRemove = (targetFile: UppyFile<M, B>) => {
+          this.uppy.log("onFileRemove RequestClient.ts")
           if (!capabilities.individualCancellation) return
           if (targetFile.id !== file.id) return
           socketSend('cancel')
@@ -571,6 +572,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
         }
 
         const onCancelAll = () => {
+          this.uppy.log(" cancel all event ------> inside RequestClient.ts")
           socketSend('cancel')
           socketAbortController?.abort?.()
           this.uppy.log(`upload ${file.id} was canceled`)

@@ -18,7 +18,7 @@ uppyDashboard.use(Tus, { endpoint: TUS_ENDPOINT, limit: 6 });
 window.uppy = uppyDashboard;
 
 uppyDashboard.on('complete', (result) => {
-  console.log('complete event payload:'.result);
+  console.log('complete event payload:',result);
   if (result.failed.length === 0) {
     console.log('Upload successful üòÄ');
   } else {

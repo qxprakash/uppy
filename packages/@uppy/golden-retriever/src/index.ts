@@ -343,6 +343,10 @@ export default class GoldenRetriever<
   }
 
   removeBlobFromStores = (file: UppyFile<M, B>): void => {
+    this.uppy.log(
+      `[GoldenRetriever] Removing file ${file.id} from stores`,
+      'warning',
+    )
     if (this.ServiceWorkerStore) {
       this.ServiceWorkerStore.delete(file.id).catch((err) => {
         this.uppy.log('[GoldenRetriever] Failed to remove file', 'warning')
@@ -395,6 +399,7 @@ export default class GoldenRetriever<
   }
 
   handleComplete = ({ successful }: UploadResult<M, B>): void => {
+    console.log("[GoldenRetriever] handleComplete", successful)
     const fileIDs = successful!.map((file) => file.id)
     this.deleteBlobs(fileIDs)
       .then(() => {

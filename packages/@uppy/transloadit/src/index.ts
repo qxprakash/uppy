@@ -630,6 +630,7 @@ export default class Transloadit<
    * When all files are removed, cancel in-progress Assemblies.
    */
   #onCancelAll = async () => {
+    this.uppy.log('[Transloadit] cancel all event ------> inside transloadit index.ts')
     if (!this.assembly) return
     try {
       await this.#cancelAssembly(this.assembly.status)

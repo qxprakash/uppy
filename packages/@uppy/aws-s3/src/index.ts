@@ -954,6 +954,7 @@ export default class AwsS3Multipart<
         const controller = new AbortController()
 
         const removedHandler = (removedFile: UppyFile<M, B>) => {
+          this.uppy.log("remove handler aws s3")
           if (removedFile.id === file.id) controller.abort()
         }
         this.uppy.on('file-removed', removedHandler)
@@ -1000,6 +1001,7 @@ export default class AwsS3Multipart<
   }
 
   #resetResumableCapability = () => {
+    this.uppy.log(' cancel all event ------> inside AwsS3Multipart')
     this.#setResumableUploadsCapability(true)
   }
 

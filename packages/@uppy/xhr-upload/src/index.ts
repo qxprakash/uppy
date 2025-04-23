@@ -505,6 +505,7 @@ export default class XHRUpload<
           const controller = new AbortController()
 
           const removedHandler = (removedFile: UppyFile<M, B>) => {
+            this.uppy.log("removedHandler xhr upload-->", "warning")
             if (removedFile.id === file.id) controller.abort()
           }
           this.uppy.on('file-removed', removedHandler)

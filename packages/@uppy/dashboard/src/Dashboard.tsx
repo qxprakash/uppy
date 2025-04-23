@@ -938,11 +938,19 @@ export default class Dashboard<M extends Meta, B extends Body> extends UIPlugin<
     }
   }
 
-  private handleComplete = ({ failed }: UploadResult<M, B>) => {
+
+
+  private handleComplete = ({ failed }: UploadResult<M, B> = { failed : [] }) => {
+    debugger
+    console.log("<------ inside handleComplete ------>")
+    console.log(failed)
+    console.log("typeof failed: ", typeof failed)
     if (this.opts.closeAfterFinish && !failed?.length) {
+      console.log("inside if statement")
       // All uploads are done
       this.requestCloseModal()
     }
+    console.log("outside if statement")
   }
 
   private handleCancelRestore = () => {
@@ -950,6 +958,9 @@ export default class Dashboard<M extends Meta, B extends Body> extends UIPlugin<
   }
 
   #generateLargeThumbnailIfSingleFile = () => {
+    this.uppy.log(
+      '[Dashboard] Generating large thumbnail for single file if needed',
+    )
     if (this.opts.disableThumbnailGenerator) {
       return
     }
@@ -1003,7 +1014,7 @@ export default class Dashboard<M extends Meta, B extends Body> extends UIPlugin<
 
     this.startListeningToResize()
     document.addEventListener('paste', this.handlePasteOnBody)
-
+    console.log("handle complete added --> ")
     this.uppy.on('plugin-added', this.#addSupportedPluginIfNoTarget)
     this.uppy.on('plugin-remove', this.removeTarget)
     this.uppy.on('file-added', this.hideAllPanels)

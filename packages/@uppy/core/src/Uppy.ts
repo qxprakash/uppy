@@ -1343,7 +1343,11 @@ export class Uppy<
     this.#updateTotalProgressThrottled()
 
     const removedFileIDs = Object.keys(removedFiles)
+    this.log("removedFileIDs -->", "warning")
+    this.log(removedFileIDs, "warning")
     removedFileIDs.forEach((fileID) => {
+      this.log("removedFileIDs -->", "warning")
+      this.log(removedFileIDs, "warning")
       this.emit('file-removed', removedFiles[fileID])
     })
 
@@ -1468,6 +1472,8 @@ export class Uppy<
   async retryAll(): Promise<UploadResult<M, B> | undefined> {
     this.log('retry all called', 'warning')
     const result = await this.#doRetryAll()
+    this.log('result after calling await this.#doRetryAll() ---->', 'warning')
+    this.log(result, 'warning')
     this.emit('complete', result!)
     return result
   }
@@ -1669,6 +1675,7 @@ export class Uppy<
    * Registers listeners for all global actions, like:
    * `error`, `file-removed`, `upload-progress`
    */
+
   #addListeners(): void {
     // Type inference only works for inline functions so we have to type it again
     const errorHandler: UppyEventMap<M, B>['error'] = (
@@ -2420,6 +2427,8 @@ export class Uppy<
           .length > 0
 
       // if no new files, make it idempotent and return
+      this.log("hasNewFiles --->", "warning")
+      this.log(hasNewFiles, "warning")
       if (!hasNewFiles) {
         this.emit('complete', retryResult!)
         return retryResult

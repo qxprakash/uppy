@@ -568,6 +568,8 @@ export default class Tus<M extends Meta, B extends Body> extends BasePlugin<
           const controller = new AbortController()
 
           const removedHandler = (removedFile: UppyFile<M, B>) => {
+            this.uppy.log('[Tus] File removed, aborting upload')
+            console.log("current file id ", file.id)
             if (removedFile.id === file.id) controller.abort()
           }
           this.uppy.on('file-removed', removedHandler)
