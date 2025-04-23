@@ -19,11 +19,11 @@ window.uppy = uppyDashboard;
 
 uppyDashboard.on('complete', (result) => {
   console.log('complete event payload:',result);
-  if (result.failed.length === 0) {
+  if (result?.failed.length === 0) {
     console.log('Upload successful üòÄ');
   } else {
     console.warn('Upload failed üòû');
   }
-  console.log('successful files:', result.successful);
-  console.log('failed files:', result.failed);
+  console.log('successful files:', result?.successful);
+  console.log('failed files:', result?.failed);
 });

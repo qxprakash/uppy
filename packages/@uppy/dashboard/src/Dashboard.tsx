@@ -941,7 +941,7 @@ export default class Dashboard<M extends Meta, B extends Body> extends UIPlugin<
 
 
   private handleComplete = ({ failed }: UploadResult<M, B> = { failed : [] }) => {
-    debugger
+    // debugger
     console.log("<------ inside handleComplete ------>")
     console.log(failed)
     console.log("typeof failed: ", typeof failed)

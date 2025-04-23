@@ -1351,6 +1351,11 @@ export class Uppy<
       this.emit('file-removed', removedFiles[fileID])
     })
 
+
+
+    this.log("currentUploads at the end of the removeFiles method -->", "warning")
+    this.log(currentUploads, "warning")
+
     if (removedFileIDs.length > 5) {
       this.log(`Removed ${removedFileIDs.length} files`)
     } else {
@@ -1479,6 +1484,7 @@ export class Uppy<
   }
 
   cancelAll(): void {
+    // debugger
     this.log('cancel all called', 'warning')
 
     this.emit('cancel-all')
@@ -2307,13 +2313,29 @@ export class Uppy<
    * Run an upload. This picks up where it left off in case the upload is being restored.
    */
   async #runUpload(uploadID: string): Promise<UploadResult<M, B> | undefined> {
+    // debugger
     this.log("[Uppy] 'runUpload' listener", "warning")
     this.log("uploadID --->", "warning")
     this.log(uploadID, "warning")
     const getCurrentUpload = (): CurrentUpload<M, B> => {
+      this.log("getCurrentUpload called", "warning")
+      this.log("getCurrentUpload() uploadId --->", "warning")
+      this.log(uploadID, "warning")
       const { currentUploads } = this.getState()
+      this.log("currentUploads destructured from this.getState()  --->", "warning")
+      this.log(currentUploads, "warning")
       return currentUploads[uploadID]
     }
+// structure of currentUploads
+  //   {
+  //     "rB9wty6ZhRGE_QjMhlsCq": {
+  //         "fileIDs": [
+  //             "uppy-docker/dmg-1e-application/x-apple-diskimage-481610481-1743810597922"
+  //         ],
+  //         "step": 0,
+  //         "result": {}
+  //     }
+  // }
 
     let currentUpload = getCurrentUpload()
     this.log("currentUpload --->", "warning")
@@ -2329,8 +2351,14 @@ export class Uppy<
           break
         }
         const fn = steps[step]
-        this.log("this.getState().currentUploads before setting into state --->", "warning")
-        this.log(this.getState().currentUploads, "warning")
+        // this.log("this.getState().currentUploads before setting into state --->", "warning")
+        // this.log(this.getState().currentUploads, "warning")
+        this.log("for loop step --->", "warning")
+        this.log(step, "warning")
+        this.log("for loop fn --->", "warning")
+        this.log(fn, "warning")
+        this.log("for loop currentUpload --->", "warning")
+        this.log(currentUpload, "warning")
         this.setState({
           currentUploads: {
             ...this.getState().currentUploads,
@@ -2353,6 +2381,9 @@ export class Uppy<
 
         // Update currentUpload value in case it was modified asynchronously.
         currentUpload = getCurrentUpload()
+        this.log("currentUpload after fn(fileIDs, uploadID) --->", "warning")
+        this.log(currentUpload, "warning")
+
       }
     } catch (err) {
       this.#removeUpload(uploadID)
@@ -2395,10 +2426,16 @@ export class Uppy<
       result = currentUpload.result
       this.#removeUpload(uploadID)
     }
+
     if (result == null) {
       this.log(
         `Not setting result for an upload that has been removed: ${uploadID}`,
       )
+      result = {
+        successful: [],
+        failed: [],
+        uploadID,
+      }
     }
     return result
   }
@@ -2535,6 +2572,19 @@ export class Uppy<
         this.log("uploadID returned from createUpload --->", "warning")
         this.log(uploadID, "warning")
         const result = await this.#runUpload(uploadID)
+        this.log("result from #runUpload --->", "warning")
+        /*
+{
+    "currentUploads": {},
+    "files": {},
+    "allowNewUpload": true,
+    "error": null,
+    "recoveredState": null
+}
+        */
+
+
+        this.log(result, "warning")
         this.emit('complete', result!)
         return result
       })
