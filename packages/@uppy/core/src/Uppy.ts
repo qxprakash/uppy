@@ -401,7 +401,7 @@ export class Uppy<
 
   #postProcessors: Set<Processor> = new Set()
 
-  defaultLocale: Locale
+  defaultLocale: OptionalPluralizeLocale
 
   locale!: Locale
 
@@ -424,7 +424,7 @@ export class Uppy<
    * Instantiate Uppy
    */
   constructor(opts?: UppyOptionsWithOptionalRestrictions<M, B>) {
-    this.defaultLocale = locale as any as Locale
+    this.defaultLocale = locale
 
     const defaultOptions: UppyOptions<Record<string, unknown>, B> = {
       id: 'uppy',
@@ -1390,38 +1390,49 @@ export class Uppy<
     this.emit('resume-all')
   }
 
-  retryAll(): Promise<UploadResult<M, B> | undefined> {
-    const updatedFiles = { ...this.getState().files }
-    const filesToRetry = Object.keys(updatedFiles).filter((file) => {
-      return updatedFiles[file].error
+  #getFilesToRetry() {
+    const { files } = this.getState()
+    return Object.keys(files).filter((file) => {
+      return files[file].error
     })
+  }
 
-    filesToRetry.forEach((file) => {
-      const updatedFile = {
-        ...updatedFiles[file],
+  async #doRetryAll(): Promise<UploadResult<M, B> | undefined> {
+    const filesToRetry = this.#getFilesToRetry()
+
+    const updatedFiles = { ...this.getState().files }
+    filesToRetry.forEach((fileID) => {
+      updatedFiles[fileID] = {
+        ...updatedFiles[fileID],
         isPaused: false,
         error: null,
       }
-      updatedFiles[file] = updatedFile
     })
+
     this.setState({
       files: updatedFiles,
       error: null,
     })
 
-    this.emit('retry-all', Object.values(updatedFiles))
+    this.emit('retry-all', this.getFilesByIds(filesToRetry))
 
     if (filesToRetry.length === 0) {
-      return Promise.resolve({
+      return {
         successful: [],
         failed: [],
-      })
+      }
     }
 
     const uploadID = this.#createUpload(filesToRetry, {
       forceAllowNewUpload: true, // create new upload even if allowNewUpload: false
     })
     return this.#runUpload(uploadID)
+  }
+
+  async retryAll(): Promise<UploadResult<M, B> | undefined> {
+    const result = await this.#doRetryAll()
+    this.emit('complete', result!)
+    return result
   }
 
   cancelAll(): void {
@@ -2321,8 +2332,6 @@ export class Uppy<
     let result
     if (currentUpload) {
       result = currentUpload.result
-      this.emit('complete', result)
-
       this.#removeUpload(uploadID)
     }
     if (result == null) {
@@ -2336,16 +2345,33 @@ export class Uppy<
   /**
    * Start an upload for all the files that are not currently being uploaded.
    */
-  upload(): Promise<NonNullable<UploadResult<M, B>> | undefined> {
+  async upload(): Promise<NonNullable<UploadResult<M, B>> | undefined> {
     if (!this.#plugins['uploader']?.length) {
       this.log('hi there !', 'warning')
       this.log('No uploader type plugins are used', 'warning')
     }
 
     let { files } = this.getState()
-    this.log("files in this.getState inside upload()", "warning")
-    this.log(files, "warning")
 
+    // retry any failed files from a previous upload() call
+    const filesToRetry = this.#getFilesToRetry()
+    if (filesToRetry.length > 0) {
+      const retryResult = await this.#doRetryAll() // we don't want the complete event to fire
+
+      const hasNewFiles =
+        this.getFiles().filter((file) => file.progress.uploadStarted == null)
+          .length > 0
+
+      // if no new files, make it idempotent and return
+      if (!hasNewFiles) {
+        this.emit('complete', retryResult!)
+        return retryResult
+      }
+      // reload files which might have  changed after retry
+      ;({ files } = this.getState())
+    }
+
+    // If no files to retry, proceed with original upload() behavior for new files
     const onBeforeUploadResult = this.opts.onBeforeUpload(files)
 
     this.log("onBeforeUploadResult --->", "warning")
@@ -2387,7 +2413,7 @@ export class Uppy<
         // missing fields error here.
         throw err
       })
-      .then(() => {
+      .then(async () => {
         this.log("files in 3rd then in promise.resolve --->", "warning")
         this.log(files, "warning")
         const { currentUploads } = this.getState()
@@ -2442,7 +2468,9 @@ export class Uppy<
         const uploadID = this.#createUpload(waitingFileIDs)
         this.log("uploadID returned from createUpload --->", "warning")
         this.log(uploadID, "warning")
-        return this.#runUpload(uploadID)
+        const result = await this.#runUpload(uploadID)
+        this.emit('complete', result!)
+        return result
       })
       .catch((err) => {
         this.emit('error', err)
