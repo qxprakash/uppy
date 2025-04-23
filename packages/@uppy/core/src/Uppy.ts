@@ -1254,7 +1254,14 @@ export class Uppy<
   }
 
   removeFiles(fileIDs: string[]): void {
+    this.log('removeFiles called', 'warning')
+    this.log(fileIDs, 'warning')
     const { files, currentUploads } = this.getState()
+    this.log('getting files and currentUploads form this.getState()', 'warning')
+    this.log('files -->', 'warning')
+    this.log(files, 'warning')
+    this.log('currentUploads -->', 'warning')
+    this.log(currentUploads, 'warning')
     const updatedFiles = { ...files }
     const updatedUploads = { ...currentUploads }
 
@@ -1262,9 +1269,18 @@ export class Uppy<
     fileIDs.forEach((fileID) => {
       if (files[fileID]) {
         removedFiles[fileID] = files[fileID]
+        this.log("removedFiles[fileID] -->", "warning")
+        this.log(removedFiles[fileID], "warning")
         delete updatedFiles[fileID]
+        this.log("updated files after deleting fileID -->", "warning")
+        this.log("updatedFiles -->", "warning")
+        this.log(updatedFiles, "warning")
+        this.log("updated uploads after deleting fileID -->", "warning")
+        this.log("updatedUploads -->", "warning")
+        this.log(updatedUploads, "warning")
       }
     })
+
 
     // Remove files from the `fileIDs` list in each upload.
     function fileIsNotRemoved(uploadFileID: string): boolean {
@@ -1272,16 +1288,22 @@ export class Uppy<
     }
 
     Object.keys(updatedUploads).forEach((uploadID) => {
+      this.log("inside Object.keys(updatedUploads) -->", "warning")
+      this.log("uploadID -->", "warning")
       const newFileIDs =
         currentUploads[uploadID].fileIDs.filter(fileIsNotRemoved)
-
+      this.log("newFileIDs -->", "warning")
+      this.log(newFileIDs, "warning")
       // Remove the upload if no files are associated with it anymore.
       if (newFileIDs.length === 0) {
         delete updatedUploads[uploadID]
         return
       }
 
+
       const { capabilities } = this.getState()
+      this.log("getting capabilities from this.getState() -->", "warning")
+      this.log(capabilities, "warning")
       if (
         newFileIDs.length !== currentUploads[uploadID].fileIDs.length &&
         !capabilities.individualCancellation
@@ -1301,15 +1323,22 @@ export class Uppy<
       currentUploads: updatedUploads,
       files: updatedFiles,
     }
+    this.log("stateUpdate -->", "warning")
+    this.log(stateUpdate, "warning")
 
     // If all files were removed - allow new uploads,
     // and clear recoveredState
     if (Object.keys(updatedFiles).length === 0) {
+      this.log("inside if Object.keys(updatedFiles).length === 0 -->", "warning")
+      this.log("stateUpdate updatedFiles -->", "warning")
+      this.log(updatedFiles, "warning")
       stateUpdate.allowNewUpload = true
       stateUpdate.error = null
       stateUpdate.recoveredState = null
     }
 
+    this.log("stateUpdate -->", "warning")
+    this.log(stateUpdate, "warning")
     this.setState(stateUpdate)
     this.#updateTotalProgressThrottled()
 
@@ -1398,9 +1427,16 @@ export class Uppy<
   }
 
   async #doRetryAll(): Promise<UploadResult<M, B> | undefined> {
+    this.log('doRetryAll called', 'warning')
     const filesToRetry = this.#getFilesToRetry()
+    this.log('filesToRetry ---->', 'warning')
+    this.log(filesToRetry, 'warning')
 
     const updatedFiles = { ...this.getState().files }
+
+    this.log('getting updatedFiles from ...this.getState().files ---->', 'warning')
+    this.log(updatedFiles, 'warning')
+
     filesToRetry.forEach((fileID) => {
       updatedFiles[fileID] = {
         ...updatedFiles[fileID],
@@ -1430,18 +1466,28 @@ export class Uppy<
   }
 
   async retryAll(): Promise<UploadResult<M, B> | undefined> {
+    this.log('retry all called', 'warning')
     const result = await this.#doRetryAll()
     this.emit('complete', result!)
     return result
   }
 
   cancelAll(): void {
+    this.log('cancel all called', 'warning')
+
     this.emit('cancel-all')
+    this.log('cancel all emitted', 'warning')
 
     const { files } = this.getState()
-
+    this.log('files in cancel all called ---->', 'warning')
+    this.log(files, 'warning')
     const fileIDs = Object.keys(files)
+    this.log('fileIDs in cancel all called ---->', 'warning')
+    this.log(fileIDs, 'warning')
     if (fileIDs.length) {
+      this.log('fileIDs.length in cancel all is true', 'warning')
+      this.log('fileIDs.length --->', 'warning')
+      this.log(fileIDs.length, 'warning')
       this.removeFiles(fileIDs)
     }
 
@@ -1472,13 +1518,15 @@ export class Uppy<
     file: UppyFile<M, B> | undefined,
     progress: FileProgressStarted,
   ) => {
-    this.log("handleUploadProgress -->", "warning")
-    this.log("file -->", "warning")
+    this.log("file inside handleUploadProgress -->", "warning")
     this.log(file, "warning")
-    this.log("progress -->", "warning")
+    this.log("progress inside handleUploadProgress -->", "warning")
     this.log(progress, "warning")
 
     const fileInState = file ? this.getFile(file.id) : undefined
+
+    this.log("fileInState inside handleUploadProgress -->", "warning")
+    this.log(fileInState, "warning")
     if (file == null || !fileInState) {
       this.log(
         `Not setting progress for a file that has been removed: ${file?.id}`,
@@ -1645,9 +1693,14 @@ export class Uppy<
       this.setState({ error: errorMsg })
 
       this.log("file.id in state.files --->", "warning")
+      this.log("file --->", "warning")
+      this.log(file, "warning")
+      this.log(file?.id)
       this.log(file != null && 'id' in file && file.id in this.getState().files, "warning")
       this.log("file.id --->", "warning")
       this.log(file?.id, "warning")
+      this.log("error details --->", "warning")
+      this.log(error.details, "warning")
       if (file != null && file.id in this.getState().files) {
         this.log("file is not null and file.id is in state.files --->", "warning")
         this.setFileState(file.id, {
