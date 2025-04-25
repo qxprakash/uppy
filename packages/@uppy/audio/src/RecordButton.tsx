@@ -14,6 +14,7 @@ export default function RecordButton({
   onStopRecording,
   i18n,
 }: RecordButtonProps) {
+  console.log('Recording inside Record Button ----->', recording)
   if (recording) {
     return (
       <button

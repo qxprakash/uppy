@@ -2256,6 +2256,7 @@ export class Uppy<
    * Start an upload for all the files that are not currently being uploaded.
    */
   async upload(): Promise<NonNullable<UploadResult<M, B>> | undefined> {
+    this.log('Starting upload', 'warning')
     if (!this.#plugins['uploader']?.length) {
       this.log('No uploader type plugins are used', 'warning')
     }
