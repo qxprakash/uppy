@@ -155,12 +155,34 @@ export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlu
     return undefined
   }
 
-  uninstall(): void {
+  streamCleanup(): void {
     if (this.videoStream) {
-      this.stop()
+      this.videoStream.getTracks().forEach((track) => {
+        track.stop()
+      })
+      this.videoStream = null
     }
+    if (this.audioStream) {
+      this.audioStream.getTracks().forEach((track) => {
+        track.stop()
+      })
+      this.audioStream = null
+    }
+    this.setPluginState({
+      streamActive: false,
+      audioStreamActive: false
+    })
+  }
 
-    this.unmount()
+  uninstall(): void {
+    this.streamCleanup()
+    // Close the Dashboard panel if plugin is installed
+    // into Dashboard (could be other parent UI plugin)
+    // @ts-expect-error we can't know Dashboard types here
+    if (this.parent && this.parent.hideAllPanels) {
+      // @ts-expect-error we can't know Dashboard types here
+      this.parent.hideAllPanels()
+    }
   }
 
   start(): Promise<void> {
@@ -190,17 +212,16 @@ export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlu
   selectVideoStreamSource(): Promise<MediaStream | false> {
     // if active stream available, return it
     if (this.videoStream) {
-      return new Promise((resolve) => resolve(this.videoStream!))
+      return Promise.resolve(this.videoStream)
     }
 
-    // ask user to select source to record and get mediastream from that
-    // eslint-disable-next-line compat/compat
+    // Ask user to select source to record and get mediastream from that
     return this.mediaDevices
       .getDisplayMedia(this.opts.displayMediaConstraints)
       .then((videoStream) => {
         this.videoStream = videoStream
 
-        // add event listener to stop recording if stream is interrupted
+        // Add event listener to stop recording if stream is interrupted
         this.videoStream.addEventListener('inactive', () => {
           this.streamInactivated()
         })
@@ -217,7 +238,6 @@ export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlu
         })
 
         this.userDenied = true
-
         setTimeout(() => {
           this.userDenied = false
         }, 1000)
@@ -392,44 +412,10 @@ export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlu
   }
 
   stop(): void {
-    // flush video stream
-    if (this.videoStream) {
-      this.videoStream.getVideoTracks().forEach((track) => {
-        track.stop()
-      })
-      this.videoStream.getAudioTracks().forEach((track) => {
-        track.stop()
-      })
-      this.videoStream = null
-    }
-
-    // flush audio stream
-    if (this.audioStream) {
-      this.audioStream.getAudioTracks().forEach((track) => {
-        track.stop()
-      })
-      this.audioStream.getVideoTracks().forEach((track) => {
-        track.stop()
-      })
-      this.audioStream = null
-    }
-
-    // flush output stream
-    if (this.outputStream) {
-      this.outputStream.getAudioTracks().forEach((track) => {
-        track.stop()
-      })
-      this.outputStream.getVideoTracks().forEach((track) => {
-        track.stop()
-      })
-      this.outputStream = null
-    }
-
-    // remove preview video
+    this.streamCleanup()
     this.setPluginState({
       recordedVideo: null,
     })
-
     this.captureActive = false
   }
 
@@ -463,13 +449,22 @@ export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlu
   }
 
   async captureScreenshot(): Promise<void> {
-    // debugger
-    if (!navigator.mediaDevices?.getDisplayMedia) {
-      return Promise.reject(new Error('Screen capture is not supported'))
+    if (!this.mediaDevices?.getDisplayMedia) {
+      throw new Error('Screen capture is not supported')
     }
 
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia(defaultOptions.displayMediaConstraints)
+      let stream = this.videoStream
+
+      // Only request new stream if we don't have one
+      if (!stream) {
+        const newStream = await this.selectVideoStreamSource()
+        if (!newStream) {
+          throw new Error('Failed to get screen capture stream')
+        }
+        stream = newStream
+      }
+
       const video = document.createElement('video')
       video.srcObject = stream
 
@@ -485,46 +480,53 @@ export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlu
       canvas.height = video.videoHeight
 
       const ctx = canvas.getContext('2d')
-      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height)
+      if (!ctx) {
+        throw new Error('Failed to get canvas context')
+      }
 
-      // Stop all tracks
-      stream.getTracks().forEach(track => track.stop())
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
       // Convert to Blob with configured quality
-      const blob = await new Promise<Blob>((resolve) => {
+      const mimeType = this.opts.preferredImageMimeType || 'image/png'
+      const quality = this.opts.screenshotQuality || 0.92
+
+      return new Promise((resolve, reject) => {
         canvas.toBlob(
-          (b) => resolve(b!),
-          this.opts?.preferredImageMimeType || 'image/png',
-          this.opts?.screenshotQuality || 0.92
+          (blob) => {
+            if (!blob) {
+              reject(new Error('Failed to create screenshot blob'))
+              return
+            }
+
+            const file = {
+              source: this.id,
+              name: `Screenshot ${new Date().toISOString()}.${getFileTypeExtension(mimeType) || 'png'}`,
+              type: mimeType,
+              data: blob,
+            }
+
+            try {
+              this.uppy.addFile(file)
+              resolve()
+            } catch (err) {
+              if (!err.isRestriction) {
+                this.uppy.log(err, 'error')
+              }
+              reject(err)
+            } finally {
+              // Cleanup
+              video.srcObject = null
+              canvas.remove()
+              video.remove()
+            }
+          },
+          mimeType,
+          quality
         )
       })
-
-      const file = {
-        source: this.id,
-        name: `screenshot-${Date.now()}.png`,
-        type: this.opts?.preferredImageMimeType || 'image/png',
-        data: blob,
-      }
-
-      console.log('logging this.uppy','warning')
-      console.log(this.uppy, 'warning')
-      this.uppy.addFile(file)
-
-      // Cleanup
-      video.srcObject = null
-      canvas.remove()
-      video.remove()
-
-      return Promise.resolve()
     } catch (err) {
-      if (err.name === 'NotAllowedError') {
-        this.userDenied = true
-        setTimeout(() => {
-          this.userDenied = false
-        }, 1000)
-      }
-      // this.uppy.log(err, 'error')
-      return Promise.reject(err)
+      this.uppy.log(err, 'error')
+      throw err
     }
   }
 
