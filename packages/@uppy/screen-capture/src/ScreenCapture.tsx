@@ -32,10 +32,12 @@ export interface ScreenCaptureOptions extends UIPluginOptions {
   displayMediaConstraints?: MediaStreamConstraints
   userMediaConstraints?: MediaStreamConstraints
   preferredVideoMimeType?: string
+  preferredImageMimeType?: string // Added for screenshot format preference
+  screenshotQuality?: number // Added for screenshot quality control (0-1)
   locale?: LocaleStrings<typeof locale>
 }
 
-// https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamConstraints
+// Default options
 const defaultOptions = {
   // https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints#Properties_of_shared_screen_tracks
   displayMediaConstraints: {
@@ -55,6 +57,8 @@ const defaultOptions = {
     audio: true,
   },
   preferredVideoMimeType: 'video/webm',
+  preferredImageMimeType: 'image/png',
+  screenshotQuality: 0.92,
 }
 
 type Opts = DefinePluginOpts<ScreenCaptureOptions, keyof typeof defaultOptions>
@@ -67,10 +71,7 @@ export type ScreenCaptureState = {
   screenRecError: string | null
 }
 
-export default class ScreenCapture<
-  M extends Meta,
-  B extends Body,
-> extends UIPlugin<Opts, M, B, ScreenCaptureState> {
+export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlugin<Opts, M, B, ScreenCaptureState> {
   static VERSION = packageJson.version
 
   mediaDevices: MediaDevices
@@ -128,6 +129,7 @@ export default class ScreenCapture<
     this.stopRecording = this.stopRecording.bind(this)
     this.submit = this.submit.bind(this)
     this.streamInterrupted = this.streamInactivated.bind(this)
+    this.captureScreenshot = this.captureScreenshot.bind(this) // Add binding for captureScreenshot
 
     // initialize
     this.captureActive = false
@@ -460,25 +462,91 @@ export default class ScreenCapture<
     return Promise.resolve(file)
   }
 
+  async captureScreenshot(): Promise<void> {
+    // debugger
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      return Promise.reject(new Error('Screen capture is not supported'))
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia(defaultOptions.displayMediaConstraints)
+      const video = document.createElement('video')
+      video.srcObject = stream
+
+      await new Promise((resolve) => {
+        video.onloadedmetadata = () => {
+          video.play()
+          resolve(null)
+        }
+      })
+
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+
+      const ctx = canvas.getContext('2d')
+      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+      // Stop all tracks
+      stream.getTracks().forEach(track => track.stop())
+
+      // Convert to Blob with configured quality
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob(
+          (b) => resolve(b!),
+          this.opts?.preferredImageMimeType || 'image/png',
+          this.opts?.screenshotQuality || 0.92
+        )
+      })
+
+      const file = {
+        source: this.id,
+        name: `screenshot-${Date.now()}.png`,
+        type: this.opts?.preferredImageMimeType || 'image/png',
+        data: blob,
+      }
+
+      console.log('logging this.uppy','warning')
+      console.log(this.uppy, 'warning')
+      this.uppy.addFile(file)
+
+      // Cleanup
+      video.srcObject = null
+      canvas.remove()
+      video.remove()
+
+      return Promise.resolve()
+    } catch (err) {
+      if (err.name === 'NotAllowedError') {
+        this.userDenied = true
+        setTimeout(() => {
+          this.userDenied = false
+        }, 1000)
+      }
+      // this.uppy.log(err, 'error')
+      return Promise.reject(err)
+    }
+  }
+
   render(): ComponentChild {
-    // get screen recorder state
     const recorderState = this.getPluginState()
 
-    if (
-      !recorderState.streamActive &&
-      !this.captureActive &&
-      !this.userDenied
-    ) {
+    if (!recorderState.streamActive && !this.captureActive && !this.userDenied) {
       this.start()
     }
 
     return (
       <RecorderScreen<M, B>
-        {...recorderState} // eslint-disable-line react/jsx-props-no-spreading
+        streamActive={recorderState.streamActive}
+        audioStreamActive={recorderState.audioStreamActive}
+        recording={recorderState.recording}
+        recordedVideo={recorderState.recordedVideo}
+        screenRecError={recorderState.screenRecError}
         onStartRecording={this.startRecording}
         onStopRecording={this.stopRecording}
         onStop={this.stop}
         onSubmit={this.submit}
+        onScreenshot={this.captureScreenshot}
         i18n={this.i18n}
         stream={this.videoStream}
       />

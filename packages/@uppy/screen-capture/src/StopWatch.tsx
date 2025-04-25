@@ -1,14 +1,22 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { h, Component } from 'preact'
+import type { I18n } from '@uppy/utils/lib/Translator'
 
-type $TSFixMe = any
-
-function fmtMSS(s: number) {
-  // eslint-disable-next-line no-return-assign, no-param-reassign
-  return (s - (s %= 60)) / 60 + (s > 9 ? ':' : ':0') + s
+interface StopWatchProps {
+  recording: boolean
+  i18n: I18n
 }
 
-class StopWatch extends Component {
+interface StopWatchState {
+  elapsedTime: number
+}
+
+function fmtMSS(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`
+}
+
+class StopWatch extends Component<StopWatchProps, StopWatchState> {
   private wrapperStyle = {
     width: '100%',
     height: '100%',
@@ -52,36 +60,35 @@ class StopWatch extends Component {
 
   private timer?: ReturnType<typeof setTimeout>
 
-  constructor(props: $TSFixMe) {
+  constructor(props: StopWatchProps) {
     super(props)
     this.state = { elapsedTime: 0 }
   }
 
-  startTimer() {
+  startTimer(): void {
     this.timerTick()
     this.timerRunning = true
   }
 
-  resetTimer() {
+  resetTimer(): void {
     clearTimeout(this.timer)
     this.setState({ elapsedTime: 0 })
     this.timerRunning = false
   }
 
-  timerTick() {
+  timerTick(): void {
     this.timer = setTimeout(() => {
-      this.setState((state: $TSFixMe) => ({
+      this.setState((state) => ({
         elapsedTime: state.elapsedTime + 1,
       }))
       this.timerTick()
     }, 1000)
   }
 
-  render() {
-    const { recording, i18n } = { ...this.props } as $TSFixMe
-    const { elapsedTime } = this.state as $TSFixMe
+  render(): preact.ComponentChild {
+    const { recording, i18n } = this.props
+    const { elapsedTime } = this.state
 
-    // second to minutes and seconds
     const minAndSec = fmtMSS(elapsedTime)
 
     if (recording && !this.timerRunning) {

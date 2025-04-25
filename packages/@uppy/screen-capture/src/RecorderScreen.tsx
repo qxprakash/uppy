@@ -1,8 +1,8 @@
-/* eslint-disable react/jsx-props-no-spreading */
 import { h, Component, type ComponentChild } from 'preact'
 import type { Body, Meta } from '@uppy/core'
 import RecordButton from './RecordButton.jsx'
 import SubmitButton from './SubmitButton.jsx'
+import ScreenshotButton from './ScreenshotButton.jsx'
 import StopWatch from './StopWatch.jsx'
 import StreamStatus from './StreamStatus.jsx'
 
@@ -13,13 +13,12 @@ type RecorderScreenProps<M extends Meta, B extends Body> = {
   onStopRecording: ScreenCapture<M, B>['stopRecording']
   onStop: ScreenCapture<M, B>['stop']
   onSubmit: ScreenCapture<M, B>['submit']
+  onScreenshot: ScreenCapture<M, B>['captureScreenshot']
   i18n: ScreenCapture<M, B>['i18n']
   stream: ScreenCapture<M, B>['videoStream']
 } & ScreenCaptureState
 
-class RecorderScreen<M extends Meta, B extends Body> extends Component<
-  RecorderScreenProps<M, B>
-> {
+class RecorderScreen<M extends Meta, B extends Body> extends Component<RecorderScreenProps<M, B>> {
   videoElement: HTMLVideoElement | null = null
 
   componentWillUnmount(): void {
@@ -27,57 +26,70 @@ class RecorderScreen<M extends Meta, B extends Body> extends Component<
     onStop()
   }
 
-  render(): ComponentChild {
-    const { recording, stream: videoStream, recordedVideo } = this.props
+  updateVideoElement = (element: HTMLVideoElement | null): void => {
+    if (!element) return
 
-    const videoProps: {
-      muted?: boolean
-      autoplay?: boolean
-      playsinline?: boolean
-      controls?: boolean
-      src?: string
-      srcObject?: MediaStream | null
-    } = {
-      playsinline: true,
-    }
+    const { recording, recordedVideo, stream } = this.props
+    this.videoElement = element
 
-    // show stream
+    const videoElement = element as HTMLVideoElement & { srcObject: MediaStream | null }
     if (recording || (!recordedVideo && !recording)) {
-      videoProps.muted = true
-      videoProps.autoplay = true
-      videoProps.srcObject = videoStream
+      videoElement.srcObject = stream
+    } else {
+      videoElement.srcObject = null
     }
+  }
 
-    // show preview
-    if (recordedVideo && !recording) {
-      videoProps.muted = false
-      videoProps.controls = true
-      videoProps.src = recordedVideo
-
-      // reset srcObject in dom. If not resetted, stream sticks in element
-      if (this.videoElement) {
-        this.videoElement.srcObject = null
-      }
-    }
+  render(): ComponentChild {
+    const {
+      recording,
+      recordedVideo,
+      onScreenshot,
+      onStartRecording,
+      onStopRecording,
+      onSubmit,
+      i18n,
+      streamActive
+    } = this.props
 
     return (
       <div className="uppy uppy-ScreenCapture-container">
         <div className="uppy-ScreenCapture-videoContainer">
-          <StreamStatus {...this.props} />
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video
-            ref={(videoElement) => {
-              this.videoElement = videoElement
-            }}
-            className="uppy-ScreenCapture-video"
-            {...videoProps}
+          <StreamStatus
+            streamActive={streamActive}
+            streamPassive={!streamActive}
+            i18n={i18n}
           />
-          <StopWatch {...this.props} />
+          <video
+            className="uppy-ScreenCapture-video"
+            ref={this.updateVideoElement}
+            playsInline
+            muted={recording || (!recordedVideo && !recording)}
+            autoPlay={recording || (!recordedVideo && !recording)}
+            controls={recordedVideo && !recording || undefined}
+            src={recordedVideo && !recording ? recordedVideo : undefined}
+          >
+            <track kind="captions" />
+          </video>
+          <div className="uppy-ScreenCapture-stopwatch">
+            <StopWatch recording={recording} i18n={i18n} />
+          </div>
         </div>
 
         <div className="uppy-ScreenCapture-buttonContainer">
-          <RecordButton {...this.props} />
-          <SubmitButton {...this.props} />
+          <ScreenshotButton onScreenshot={onScreenshot} i18n={i18n} />
+          <RecordButton
+            recording={recording}
+            onStartRecording={onStartRecording}
+            onStopRecording={onStopRecording}
+            i18n={i18n}
+          />
+          <SubmitButton
+            recording={recording}
+            recordedVideo={recordedVideo}
+            onSubmit={onSubmit}
+            i18n={i18n}
+          />
         </div>
       </div>
     )

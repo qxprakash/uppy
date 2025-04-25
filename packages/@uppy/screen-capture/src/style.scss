@@ -154,3 +154,20 @@
     background-color: darken($red, 10%);
   }
 }
+
+.uppy-ScreenCapture-button--screenshot {
+  margin-right: 8px;
+  background-color: #939393;
+  color: white;
+
+  svg {
+    fill: currentColor;
+    width: 32px;
+    height: 32px;
+    display: block;
+  }
+
+  &:hover {
+    background-color: darken(#939393, 10%);
+  }
+}
