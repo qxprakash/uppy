@@ -13,9 +13,9 @@ export default function RecordButton({
   i18n,
 }: $TSFixMe) {
   // debugger
-  console.log('Recording inside Record Button ----->', recording)
-  console.log('onStartRecording inside Record Button ----->', onStartRecording)
-  console.log('onStopRecording inside Record Button ----->', onStopRecording)
+  // console.log('Recording inside Record Button ----->', recording)
+  // console.log('onStartRecording inside Record Button ----->', onStartRecording)
+  // console.log('onStopRecording inside Record Button ----->', onStopRecording)
   if (recording) {
     return (
       <button

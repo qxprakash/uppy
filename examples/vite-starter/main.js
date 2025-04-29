@@ -48,7 +48,9 @@ if (isScreenCaptureSupported()) {
         cursor: 'always'
       },
       audio: false // Disable audio for screenshots
-    }
+    },
+    enableScreenshots: true,
+    preferredImageMimeType: 'image/jpeg',
   });
 } else {
   console.warn('Screen capture is not supported in this browser');

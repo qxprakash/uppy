@@ -16,9 +16,12 @@ type RecorderScreenProps<M extends Meta, B extends Body> = {
   onScreenshot: ScreenCapture<M, B>['captureScreenshot']
   i18n: ScreenCapture<M, B>['i18n']
   stream: ScreenCapture<M, B>['videoStream']
+  enableScreenshots: boolean
 } & ScreenCaptureState
 
-class RecorderScreen<M extends Meta, B extends Body> extends Component<RecorderScreenProps<M, B>> {
+class RecorderScreen<M extends Meta, B extends Body> extends Component<
+  RecorderScreenProps<M, B>
+> {
   videoElement: HTMLVideoElement | null = null
 
   componentWillUnmount(): void {
@@ -32,7 +35,9 @@ class RecorderScreen<M extends Meta, B extends Body> extends Component<RecorderS
     const { recording, recordedVideo, stream } = this.props
     this.videoElement = element
 
-    const videoElement = element as HTMLVideoElement & { srcObject: MediaStream | null }
+    const videoElement = element as HTMLVideoElement & {
+      srcObject: MediaStream | null
+    }
     if (recording || (!recordedVideo && !recording)) {
       videoElement.srcObject = stream
     } else {
@@ -49,7 +54,8 @@ class RecorderScreen<M extends Meta, B extends Body> extends Component<RecorderS
       onStopRecording,
       onSubmit,
       i18n,
-      streamActive
+      enableScreenshots,
+      streamActive,
     } = this.props
 
     return (
@@ -66,7 +72,7 @@ class RecorderScreen<M extends Meta, B extends Body> extends Component<RecorderS
             playsInline
             muted={recording || (!recordedVideo && !recording)}
             autoPlay={recording || (!recordedVideo && !recording)}
-            controls={recordedVideo && !recording || undefined}
+            controls={(recordedVideo && !recording) || undefined}
             src={recordedVideo && !recording ? recordedVideo : undefined}
           >
             <track kind="captions" />
@@ -77,7 +83,9 @@ class RecorderScreen<M extends Meta, B extends Body> extends Component<RecorderS
         </div>
 
         <div className="uppy-ScreenCapture-buttonContainer">
-          <ScreenshotButton onScreenshot={onScreenshot} i18n={i18n} />
+          {enableScreenshots && (
+            <ScreenshotButton onScreenshot={onScreenshot} i18n={i18n} />
+          )}{' '}
           <RecordButton
             recording={recording}
             onStartRecording={onStartRecording}

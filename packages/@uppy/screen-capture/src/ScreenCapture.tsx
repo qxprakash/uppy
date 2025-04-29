@@ -35,6 +35,7 @@ export interface ScreenCaptureOptions extends UIPluginOptions {
   preferredImageMimeType?: string // Added for screenshot format preference
   screenshotQuality?: number // Added for screenshot quality control (0-1)
   locale?: LocaleStrings<typeof locale>
+  enableScreenshots?: boolean // Added for enabling/disabling screenshot functionality
 }
 
 // Default options
@@ -59,6 +60,7 @@ const defaultOptions = {
   preferredVideoMimeType: 'video/webm',
   preferredImageMimeType: 'image/png',
   screenshotQuality: 0.92,
+  enableScreenshots: false, // Default to enabling screenshots
 }
 
 type Opts = DefinePluginOpts<ScreenCaptureOptions, keyof typeof defaultOptions>
@@ -587,6 +589,7 @@ export default class ScreenCapture<
         onStop={this.stop}
         onSubmit={this.submit}
         onScreenshot={this.captureScreenshot}
+        enableScreenshots={this.opts.enableScreenshots}
         i18n={this.i18n}
         stream={this.videoStream}
       />
