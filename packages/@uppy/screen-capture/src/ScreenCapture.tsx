@@ -71,7 +71,10 @@ export type ScreenCaptureState = {
   screenRecError: string | null
 }
 
-export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlugin<Opts, M, B, ScreenCaptureState> {
+export default class ScreenCapture<
+  M extends Meta,
+  B extends Body,
+> extends UIPlugin<Opts, M, B, ScreenCaptureState> {
   static VERSION = packageJson.version
 
   mediaDevices: MediaDevices
@@ -170,19 +173,16 @@ export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlu
     }
     this.setPluginState({
       streamActive: false,
-      audioStreamActive: false
+      audioStreamActive: false,
     })
   }
 
   uninstall(): void {
-    this.streamCleanup()
-    // Close the Dashboard panel if plugin is installed
-    // into Dashboard (could be other parent UI plugin)
-    // @ts-expect-error we can't know Dashboard types here
-    if (this.parent && this.parent.hideAllPanels) {
-      // @ts-expect-error we can't know Dashboard types here
-      this.parent.hideAllPanels()
+    if (this.videoStream) {
+      this.stop()
     }
+
+    this.unmount()
   }
 
   start(): Promise<void> {
@@ -412,10 +412,44 @@ export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlu
   }
 
   stop(): void {
-    this.streamCleanup()
+    // flush video stream
+    if (this.videoStream) {
+      this.videoStream.getVideoTracks().forEach((track) => {
+        track.stop()
+      })
+      this.videoStream.getAudioTracks().forEach((track) => {
+        track.stop()
+      })
+      this.videoStream = null
+    }
+
+    // flush audio stream
+    if (this.audioStream) {
+      this.audioStream.getAudioTracks().forEach((track) => {
+        track.stop()
+      })
+      this.audioStream.getVideoTracks().forEach((track) => {
+        track.stop()
+      })
+      this.audioStream = null
+    }
+
+    // flush output stream
+    if (this.outputStream) {
+      this.outputStream.getAudioTracks().forEach((track) => {
+        track.stop()
+      })
+      this.outputStream.getVideoTracks().forEach((track) => {
+        track.stop()
+      })
+      this.outputStream = null
+    }
+
+    // remove preview video
     this.setPluginState({
       recordedVideo: null,
     })
+
     this.captureActive = false
   }
 
@@ -521,7 +555,7 @@ export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlu
             }
           },
           mimeType,
-          quality
+          quality,
         )
       })
     } catch (err) {
@@ -533,7 +567,11 @@ export default class ScreenCapture<M extends Meta, B extends Body> extends UIPlu
   render(): ComponentChild {
     const recorderState = this.getPluginState()
 
-    if (!recorderState.streamActive && !this.captureActive && !this.userDenied) {
+    if (
+      !recorderState.streamActive &&
+      !this.captureActive &&
+      !this.userDenied
+    ) {
       this.start()
     }
 
