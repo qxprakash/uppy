@@ -36,7 +36,6 @@ if (isScreenCaptureSupported()) {
   uppyDashboard.use(ScreenCapture, {
     target: Dashboard,
     preferredVideoMimeType: 'video/webm',
-    preferredImageMimeType: 'image/png',
     displayMediaConstraints: {
       video: {
         width: 1280,
@@ -50,6 +49,7 @@ if (isScreenCaptureSupported()) {
       audio: false // Disable audio for screenshots
     },
     enableScreenshots: true,
+    screenshotQuality: 0.5,
     preferredImageMimeType: 'image/jpeg',
   });
 } else {

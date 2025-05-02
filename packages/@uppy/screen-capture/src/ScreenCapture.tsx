@@ -71,6 +71,7 @@ export type ScreenCaptureState = {
   recording: boolean
   recordedVideo: string | null
   screenRecError: string | null
+  capturedScreenshotUrl: string | null
 }
 
 export default class ScreenCapture<
@@ -134,7 +135,7 @@ export default class ScreenCapture<
     this.stopRecording = this.stopRecording.bind(this)
     this.submit = this.submit.bind(this)
     this.streamInterrupted = this.streamInactivated.bind(this)
-    this.captureScreenshot = this.captureScreenshot.bind(this) // Add binding for captureScreenshot
+    this.captureScreenshot = this.captureScreenshot.bind(this) 
 
     // initialize
     this.captureActive = false
@@ -277,6 +278,7 @@ export default class ScreenCapture<
   }
 
   startRecording(): void {
+    this.uppy.log('ScreenCapture: startRecording()', 'error')
     const options: { mimeType?: string } = {}
     this.capturedMediaFile = null
     this.recordingChunks = []
@@ -414,6 +416,10 @@ export default class ScreenCapture<
   }
 
   stop(): void {
+    this.uppy.log('ScreenCapture: stop()', 'error')
+
+
+
     // flush video stream
     if (this.videoStream) {
       this.videoStream.getVideoTracks().forEach((track) => {
@@ -447,10 +453,20 @@ export default class ScreenCapture<
       this.outputStream = null
     }
 
+    // Clean up screenshot URL
+    const { capturedScreenshotUrl } = this.getPluginState()
+    if (capturedScreenshotUrl) {
+      URL.revokeObjectURL(capturedScreenshotUrl)
+    }
+
+
     // remove preview video
     this.setPluginState({
       recordedVideo: null,
+      capturedScreenshotUrl: null
     })
+
+
 
     this.captureActive = false
   }
@@ -542,9 +558,16 @@ export default class ScreenCapture<
             }
 
             try {
+              const screenshotUrl = URL.createObjectURL(blob)
+              this.setPluginState({
+                capturedScreenshotUrl: screenshotUrl,
+              })
               this.uppy.addFile(file)
               resolve()
             } catch (err) {
+              if (this.getPluginState().capturedScreenshotUrl) {
+                this.setPluginState({ capturedScreenshotUrl: null })
+              }
               if (!err.isRestriction) {
                 this.uppy.log(err, 'error')
               }
@@ -589,6 +612,7 @@ export default class ScreenCapture<
         onStop={this.stop}
         onSubmit={this.submit}
         onScreenshot={this.captureScreenshot}
+        capturedScreenshotUrl={recorderState.capturedScreenshotUrl}
         enableScreenshots={this.opts.enableScreenshots}
         i18n={this.i18n}
         stream={this.videoStream}
