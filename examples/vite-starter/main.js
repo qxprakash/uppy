@@ -49,8 +49,8 @@ if (isScreenCaptureSupported()) {
       audio: false // Disable audio for screenshots
     },
     enableScreenshots: true,
-    screenshotQuality: 0.8,
-    preferredImageMimeType: 'image/jpeg',
+    screenshotQuality: undefined,
+    preferredImageMimeType: 'image/webp',
   });
 } else {
   console.warn('Screen capture is not supported in this browser');
