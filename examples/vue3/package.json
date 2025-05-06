@@ -8,13 +8,13 @@
     "preview": "vite preview --port 5050"
   },
   "dependencies": {
-    "@uppy/core": "workspace:*",
-    "@uppy/dashboard": "workspace:*",
-    "@uppy/drag-drop": "workspace:*",
-    "@uppy/progress-bar": "workspace:*",
-    "@uppy/tus": "workspace:*",
-    "@uppy/vue": "workspace:*",
-    "@uppy/webcam": "workspace:*",
+    "@uppy/core": "^4.0.0",
+    "@uppy/dashboard": "^4.0.0",
+    "@uppy/drag-drop": "^4.0.0",
+    "@uppy/progress-bar": "^4.0.0",
+    "@uppy/tus": "^4.0.0",
+    "@uppy/vue": "^4.0.0",
+    "@uppy/webcam": "^4.0.0",
     "vue": "^3.2.33"
   },
   "devDependencies": {
