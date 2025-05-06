@@ -3,11 +3,11 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
-    "@uppy/core": "^4.0.0",
-    "@uppy/dashboard": "^4.0.0",
-    "@uppy/react": "^4.0.0",
-    "@uppy/remote-sources": "^4.0.0",
-    "@uppy/tus": "^4.0.0",
+    "@uppy/core": "^3.0.0",
+    "@uppy/dashboard": "^3.0.0",
+    "@uppy/react": "^3.0.0",
+    "@uppy/remote-sources": "^2.0.0",
+    "@uppy/tus": "^3.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
