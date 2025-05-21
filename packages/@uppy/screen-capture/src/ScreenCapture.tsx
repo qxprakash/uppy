@@ -138,6 +138,7 @@ export default class ScreenCapture<
     this.submit = this.submit.bind(this)
     this.streamInterrupted = this.streamInactivated.bind(this)
     this.captureScreenshot = this.captureScreenshot.bind(this)
+    this.discardRecordedMedia = this.discardRecordedMedia.bind(this) // Add this line
 
     // initialize
     this.captureActive = false
@@ -385,6 +386,29 @@ export default class ScreenCapture<
       )
   }
 
+  discardRecordedMedia(): void {
+    const { capturedScreenshotUrl, recordedVideo } = this.getPluginState()
+
+    if (capturedScreenshotUrl) {
+      URL.revokeObjectURL(capturedScreenshotUrl)
+    }
+    if (recordedVideo) {
+      URL.revokeObjectURL(recordedVideo)
+    }
+
+    this.capturedMediaFile = null // Clear any stored blob/file reference
+
+    this.setPluginState({
+      recordedVideo: null,
+      capturedScreenshotUrl: null,
+      // Note: We don't change 'recording', 'streamActive', or 'audioStreamActive' here.
+      // 'recording' should already be false when the discard button is visible.
+      // 'streamActive' and 'audioStreamActive' should persist so the live stream remains visible.
+    })
+
+    // DO NOT CALL this.stop() here, as we want to keep the original media stream alive.
+  }
+
   submit(): void {
     try {
       // add recorded file to uppy
@@ -416,9 +440,6 @@ export default class ScreenCapture<
       this.audioStream.getAudioTracks().forEach((track) => {
         track.stop()
       })
-      this.audioStream.getVideoTracks().forEach((track) => {
-        track.stop()
-      })
       this.audioStream = null
     }
 
@@ -434,18 +455,23 @@ export default class ScreenCapture<
     }
 
     // Clean up screenshot URL
-    const { capturedScreenshotUrl } = this.getPluginState()
+    const { capturedScreenshotUrl, recordedVideo } = this.getPluginState()
     if (capturedScreenshotUrl) {
       URL.revokeObjectURL(capturedScreenshotUrl)
     }
-
-    // remove preview video
-    this.setPluginState({
-      recordedVideo: null,
-      capturedScreenshotUrl: null,
-    })
+    // Clean up video URL
+    if (recordedVideo) {
+      URL.revokeObjectURL(recordedVideo)
+    }
 
     this.captureActive = false
+    this.setPluginState({
+      recording: false,
+      recordedVideo: null,
+      capturedScreenshotUrl: null,
+      streamActive: false,
+      audioStreamActive: false,
+    })
   }
 
   getVideo(): Promise<{
@@ -598,6 +624,7 @@ export default class ScreenCapture<
         onSubmit={this.submit}
         i18n={this.i18n}
         stream={this.videoStream}
+        onDiscard={this.discardRecordedMedia} // Add this line
       />
     )
   }
