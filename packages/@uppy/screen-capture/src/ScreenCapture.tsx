@@ -465,8 +465,6 @@ export default class ScreenCapture<
     // remove preview video
     this.setPluginState({
       recording: false,
-      streamActive: false,
-      audioStreamActive: false,
       recordedVideo: null,
       capturedScreenshotUrl: null,
       streamActive: false,
