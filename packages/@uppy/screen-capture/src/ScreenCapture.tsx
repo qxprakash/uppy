@@ -138,7 +138,7 @@ export default class ScreenCapture<
     this.submit = this.submit.bind(this)
     this.streamInterrupted = this.streamInactivated.bind(this)
     this.captureScreenshot = this.captureScreenshot.bind(this)
-    this.discardRecordedMedia = this.discardRecordedMedia.bind(this) // Add this line
+    this.discardRecordedMedia = this.discardRecordedMedia.bind(this)
 
     // initialize
     this.captureActive = false
@@ -396,17 +396,12 @@ export default class ScreenCapture<
       URL.revokeObjectURL(recordedVideo)
     }
 
-    this.capturedMediaFile = null // Clear any stored blob/file reference
+    this.capturedMediaFile = null
 
     this.setPluginState({
       recordedVideo: null,
       capturedScreenshotUrl: null,
-      // Note: We don't change 'recording', 'streamActive', or 'audioStreamActive' here.
-      // 'recording' should already be false when the discard button is visible.
-      // 'streamActive' and 'audioStreamActive' should persist so the live stream remains visible.
     })
-
-    // DO NOT CALL this.stop() here, as we want to keep the original media stream alive.
   }
 
   submit(): void {
@@ -464,9 +459,14 @@ export default class ScreenCapture<
       URL.revokeObjectURL(recordedVideo)
     }
 
-    this.captureActive = false
+    if (recordedVideo) {
+      URL.revokeObjectURL(recordedVideo)
+    }
+    // remove preview video
     this.setPluginState({
       recording: false,
+      streamActive: false,
+      audioStreamActive: false,
       recordedVideo: null,
       capturedScreenshotUrl: null,
       streamActive: false,
@@ -624,7 +624,7 @@ export default class ScreenCapture<
         onSubmit={this.submit}
         i18n={this.i18n}
         stream={this.videoStream}
-        onDiscard={this.discardRecordedMedia} // Add this line
+        onDiscard={this.discardRecordedMedia}
       />
     )
   }
