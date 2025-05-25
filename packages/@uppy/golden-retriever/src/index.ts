@@ -98,6 +98,7 @@ export default class GoldenRetriever<
       this.loadFileBlobsFromServiceWorker.bind(this)
     this.loadFileBlobsFromIndexedDB = this.loadFileBlobsFromIndexedDB.bind(this)
     this.onBlobsLoaded = this.onBlobsLoaded.bind(this)
+    console.log('hello from golden retriever plugin ------->')
   }
 
   restoreState(): void {
