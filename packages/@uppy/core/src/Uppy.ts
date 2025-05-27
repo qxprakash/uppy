@@ -491,6 +491,7 @@ export class Uppy<
 
     this.#storeUnsubscribe = this.store.subscribe(
       (prevState, nextState, patch) => {
+        console.log('inside #storeUnsubscribe ----->')
         this.emit('state-update', prevState, nextState, patch)
         this.updateAll(nextState)
       },

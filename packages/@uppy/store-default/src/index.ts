@@ -33,8 +33,15 @@ class DefaultStore<T extends GenericState = GenericState> implements Store<T> {
   }
 
   setState(patch?: Partial<T>): void {
+    console.log('setState called ------>')
+
+    console.log('patch --->', patch)
+
     const prevState = { ...this.state }
     const nextState = { ...this.state, ...patch }
+
+    console.log('prevState --->', prevState)
+    console.log('nextState --->', nextState)
 
     this.state = nextState
     this.#publish(prevState, nextState, patch)
@@ -48,7 +55,13 @@ class DefaultStore<T extends GenericState = GenericState> implements Store<T> {
   }
 
   #publish(...args: Parameters<Listener<T>>): void {
+    // debugger
+    console.log('publish called ------>')
+    console.log('args --->', args)
+    // console.log("this.#callbacks --->", this.#callbacks)
     this.#callbacks.forEach((listener) => {
+      console.log('listener --->', listener)
+      console.log('listener(...args) --->', listener(...args))
       listener(...args)
     })
   }
