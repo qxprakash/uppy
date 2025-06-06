@@ -13,6 +13,7 @@ export type StoredState<M extends Meta, B extends Body> = {
  * Get uppy instance IDs for which state is stored.
  */
 function findUppyInstances(): string[] {
+  console.log("MetaDataStore.findUppyInstances() -- looking for Uppy instances in localStorage")
   const instances: string[] = []
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
@@ -64,9 +65,12 @@ export default class MetaDataStore<M extends Meta, B extends Body> {
    *
    */
   load(): StoredState<M, B>['metadata'] | null {
+    console.log("MetaDataStore.load() -- loading metadata from localStorage with key:", this.name)
     const savedState = localStorage.getItem(this.name)
+    console.log("MetaDataStore.load() -- savedState:", savedState)
     if (!savedState) return null
     const data = maybeParse<M, B>(savedState)
+    console.log("MetaDataStore.load() -- parsed data:", data)
     if (!data) return null
 
     return data.metadata
@@ -74,17 +78,26 @@ export default class MetaDataStore<M extends Meta, B extends Body> {
 
   save(metadata: Record<string, unknown>): void {
     const expires = Date.now() + this.opts.expires
+    console.log("MetaDataStore.save() -- metadata:", metadata)
     const state = JSON.stringify({
       metadata,
       expires,
     })
+    console.log("MetaDataStore.save() -- state:", state)
     localStorage.setItem(this.name, state)
+    console.log("MetaDataStore.save() -- saved to localStorage with key:", this.name)
+
+    // recheck the saved state from localStorage
+    const savedState = localStorage.getItem(this.name)
+
+    console.log("rechecking MetaDataStore.save() ------> savedState:", savedState)
   }
 
   /**
    * Remove all expired state.
    */
   static cleanup(instanceID?: string): void {
+    console.log("MetaDataStore.cleanup() -- cleaning up expired state from localStorage")
     if (instanceID) {
       localStorage.removeItem(`uppyState:${instanceID}`)
       return

@@ -75,6 +75,7 @@ class Restricter<M extends Meta, B extends Body> {
       ) {
         throw new TypeError('`restrictions.allowedFileTypes` must be an array')
       }
+      console.log("this.getOpts ---->", opts)
       return opts
     }
   }
@@ -190,19 +191,27 @@ class Restricter<M extends Meta, B extends Body> {
     missingFields: string[]
     error: RestrictionError<M, B>
   } {
+    console.log("inside getMissingRequiredMetaFields")
     const error = new RestrictionError<M, B>(
       this.getI18n()('missingRequiredMetaFieldOnFile', {
         fileName: file.name ?? this.getI18n()('unnamed'),
       }),
     )
     const { requiredMetaFields } = this.getOpts().restrictions
+    console.log("requiredMetaFields", requiredMetaFields)
+
     const missingFields: string[] = []
 
     for (const field of requiredMetaFields) {
-      if (!Object.hasOwn(file.meta, field) || file.meta[field] === '') {
+      console.log("checking field inside const field of requiredMetaFields --->", field)
+
+      console.log("file.meta --->", file.meta)
+      if (!Object.hasOwn(file.meta, field)) {
         missingFields.push(field)
       }
     }
+
+    console.log("missingFields --->", missingFields)
 
     return { missingFields, error }
   }

@@ -339,8 +339,12 @@ export default class Dashboard<M extends Meta, B extends Body> extends UIPlugin<
       type: callerPluginType,
     }
 
+    console.log("[Dashboard] Adding target --->", target)
+
     const state = this.getPluginState()
+    console.log("[Dashboard] Current targets --->", state.targets)
     const newTargets = state.targets.slice()
+    console.log("[Dashboard] New targets before push --->", newTargets)
     newTargets.push(target)
 
     this.setPluginState({

@@ -566,6 +566,8 @@ export class Uppy<
   patchFilesState(filesWithNewState: {
     [id: string]: Partial<UppyFile<M, B>>
   }): void {
+
+    console.log("pathFilesState called with filesWithNewState:", filesWithNewState)
     const existingFilesState = this.getState().files
 
     this.setState({
@@ -818,6 +820,8 @@ export class Uppy<
       }
     }
 
+    console.log("inside getObjectOfFilesPerState")
+    console.log("files --->", files)
     return {
       newFiles,
       startedFiles,
@@ -921,17 +925,38 @@ export class Uppy<
   #checkRequiredMetaFieldsOnFile(file: UppyFile<M, B>): boolean {
     const { missingFields, error } =
       this.#restricter.getMissingRequiredMetaFields(file)
+      console.log("inside #checkRequiredMetaFieldsOnFile")
+      console.log("missingFields", missingFields)
+      console.log("error", error)
+      console.log("file state --> ", this.getFile(file.id))
+
+      let { missingRequiredMetaFields } = file
+
+      console.log("missingRequiredMetaFields", missingRequiredMetaFields)
 
     if (missingFields.length > 0) {
+      console.log("inside if missingFields.length > 0")
       this.setFileState(file.id, { missingRequiredMetaFields: missingFields })
       this.log(error.message)
       this.emit('restriction-failed', file, error)
+      console.log("returning false")
+
+      // console.log("file before returning false", file)
       return false
     }
+    // this.setFileState(file.id, { missingRequiredMetaFields: [] })
+    console.log("returning true")
+
+    // const { missingRequiredMetaFields } = file
+
+    // console.log("missingRequiredMetaFields before returning true", missingRequiredMetaFields)
+
+    this.setFileState(file.id, { missingRequiredMetaFields: missingFields })
     return true
   }
 
   #checkRequiredMetaFields(files: State<M, B>['files']): boolean {
+    console.log("inside #checkRequiredMetaFields")
     let success = true
     for (const file of Object.values(files)) {
       if (!this.#checkRequiredMetaFieldsOnFile(file)) {
@@ -1800,7 +1825,9 @@ export class Uppy<
 
     // @ts-expect-error should fix itself when dashboard it typed (also this doesn't belong here)
     this.on('dashboard:file-edit-complete', (file) => {
+      console.log("Dashboard's file edit complete event received in Core")
       if (file) {
+        console.log("file inside if statement", file)
         this.#checkRequiredMetaFieldsOnFile(file)
       }
     })
@@ -1888,6 +1915,7 @@ export class Uppy<
     plugin.install()
 
     this.emit('plugin-added', plugin)
+    console.log("Plugin added successfully --->", plugin)
 
     return this
   }
@@ -2308,6 +2336,7 @@ export class Uppy<
         throw err
       })
       .then(() => {
+        console.log("checking required meta fields")
         if (!this.#checkRequiredMetaFields(files)) {
           throw new RestrictionError(this.i18n('missingRequiredMetaField'))
         }

@@ -33,6 +33,7 @@ class DefaultStore<T extends GenericState = GenericState> implements Store<T> {
   }
 
   setState(patch?: Partial<T>): void {
+    // debugger
     console.log('setState called ------>')
 
     console.log('patch --->', patch)

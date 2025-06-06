@@ -156,6 +156,7 @@ export default class GoldenRetriever<
   }
 
   saveFilesStateToLocalStorage(): void {
+    // debugger
     console.log('inside saveFilesStateToLocalStorage ------->')
     const filesToSave = {
       ...this.getWaitingFiles(),
@@ -259,6 +260,7 @@ export default class GoldenRetriever<
 
   loadFileBlobsFromIndexedDB(): ReturnType<IndexedDBStore['list']> {
     console.log('loadFileBlobsFromIndexedDB called ------->')
+    debugger
     return this.IndexedDBStore.list()
       .then((blobs) => {
         console.log('inside IndexedDBStore.list() ------->')
