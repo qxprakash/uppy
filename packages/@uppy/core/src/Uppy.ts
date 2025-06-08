@@ -218,6 +218,7 @@ interface CurrentUpload<M extends Meta, B extends Body> {
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface Plugins extends Record<string, Record<string, unknown> | undefined> {}
 
+// Uppy State
 export interface State<M extends Meta, B extends Body>
   extends Record<string, unknown> {
   meta: M
@@ -278,6 +279,14 @@ export interface UppyOptionsWithOptionalRestrictions<
 }
 
 // The user facing type for UppyOptions used in uppy.setOptions()
+/*
+Provide any subset of the standard Uppy options.
+Provide partial updates for complex nested options like meta and restrictions.
+Use a specific type for locale ,
+omit `locale` , `meta` and `restrictions` from the options type,
+and intersect them with specific types for `locale`, `meta` and `restrictions`.
+*/
+
 type MinimalRequiredOptions<M extends Meta, B extends Body> = Partial<
   Omit<UppyOptions<M, B>, 'locale' | 'meta' | 'restrictions'> & {
     locale: OptionalPluralizeLocale
@@ -469,7 +478,11 @@ export class Uppy<
 
     this.i18nInit()
 
+    // this.opts.store is the store that Uppy will use to manage its state.
+    // currently set to new DefaultStore()
     this.store = this.opts.store
+
+    // setting default state
     this.setState({
       ...defaultUploadState,
       plugins: {},
@@ -484,14 +497,32 @@ export class Uppy<
       info: [],
     })
 
+
+  // Restricter is a utility that validates files against the restrictions set in Uppy options.
     this.#restricter = new Restricter<M, B>(
       () => this.opts,
       () => this.i18n,
     )
 
+
+    // DefaultStore subscribe method returns a function that unsubscribes the listener
+    // i.e. delete the listener from the callbacks set
     this.#storeUnsubscribe = this.store.subscribe(
+      // The function passed to subscribe method of the DefaultStore class
+      // is will be added to the callbacks set to be called whenever the state changes (i.e. SetState) is called.
+      // it's setState method at the end it calls this.#publish(prevState, nextState, patch)
+      // inside publish
+      // each listener is called --
+      /*
+          this.#callbacks.forEach((listener) => {
+            listener(...args)
+          })
+      */
       (prevState, nextState, patch) => {
+        // now it makes sense to emit the `state-update` event when a state change occurs
+        // so that whenever the state changes, this event will be emitted
         this.emit('state-update', prevState, nextState, patch)
+        // update all method is a method of the basePlugin class when updates state of all the plugins
         this.updateAll(nextState)
       },
     )
@@ -500,6 +531,16 @@ export class Uppy<
     if (this.opts.debug && typeof window !== 'undefined') {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore Mutating the global object for debug purposes
+
+
+      // This is a way to expose the Uppy instance globally, so that it can be accessed from the browser console.
+      // this is doing window[uppy.id (which is a string (can be set using newUppy(id: "myUppy")) with default value 'uppy')]
+      // this is doing window["uppy"] or window["myUppy"] = this
+      // By doing this, the Uppy instance becomes directly accessible from the browser's developer console.
+      // For example, if the Uppy instance has the default ID 'uppy' and debug is true,
+      // a developer can open the browser console and type: uppy
+      // This would display the Uppy instance, allowing them to inspect its properties, current state, and methods.
+
       window[this.opts.id] = this
     }
 
@@ -512,6 +553,48 @@ export class Uppy<
   ): void {
     this.#emitter.emit(event, ...args)
   }
+
+
+  /*
+   why this is being returned ?
+   Method chaining is a common programming pattern where multiple methods are called on the same object
+   consecutively in a single statement. Each method in the chain (except possibly the last one) returns
+   the object itself (this), allowing the next method to be called on it.
+
+  Conciseness and Readability: It allows developers to register multiple event listeners on the
+ same Uppy instance in a more fluent and compact way.
+
+  Convenience: It's a common convention in event emitter libraries and many other JavaScript libraries.
+
+Instead of writing:
+
+const uppy = new Uppy();
+
+uppy.on('file-added', (file) => {
+  console.log('File added:', file);
+});
+uppy.on('upload-success', (file, response) => {
+  console.log('Upload successful:', file, response);
+});
+
+We can write:
+
+const uppy = new Uppy();
+
+uppy
+  .on('file-added', (file) => {
+    console.log('File added:', file);
+  })
+  .on('upload-success', (file, response) => {
+    console.log('Upload successful:', file, response);
+  })
+
+  */
+
+
+// The this.#emitter.on(event, callback) line does the actual work of registering the event listener with the internal event
+// emitter instance (this.#emitter). The return this line then simply returns the Uppy instance itself,
+// making the next .on(...) call (or any other Uppy method) possible on the same line.
 
   on<K extends keyof UppyEventMap<M, B>>(
     event: K,
@@ -562,23 +645,80 @@ export class Uppy<
     return this.store.getState()
   }
 
+
+
+
+
+  // pathFilesState is designed to update the state of multiple files in a "patch" or partial manner.
+  // It allows you to provide new state information for specific files, and it will merge this new information
+  // with the existing state of those files. example needed
+
+// example Imagine the current files state is :
+/*
+{
+  "file1": { id: "file1", name: "image.jpg", progress: { percentage: 10 }, meta: {} },
+  "file2": { id: "file2", name: "document.pdf", progress: { percentage: 0 }, meta: {} }
+}
+
+If you call:
+
+uppy.patchFilesState({
+  "file1": { progress: { percentage: 50, bytesUploaded: 500 } }, // Update progress for file1
+  "file2": { error: "Network issue" }                             // Add an error to file2
+});
+
+The new files state would become:
+
+{
+  "file1": { id: "file1", name: "image.jpg", progress: { percentage: 50, bytesUploaded: 500 }, meta: {} }, - updated progress
+  "file2": { id: "file2", name: "document.pdf", progress: { percentage: 0 }, meta: {}, error: "Network issue" } - error added
+}
+
+*/
+
+// ? Done
   patchFilesState(filesWithNewState: {
     [id: string]: Partial<UppyFile<M, B>>
   }): void {
+
+  // 1. Get the current state of all files.
+    // `this.getState().files` returns an object where keys are file IDs
+    // and values are the UppyFile objects.
     const existingFilesState = this.getState().files
 
     this.setState({
+      // 3. The 'files' property of the state is being updated.
       files: {
+        //  4. Spread all existing files into the new 'files' object.
+        // This ensures that files not being patched remain unchanged.
         ...existingFilesState,
+      // 5. Process the `filesWithNewState` object to create an object
+        //    containing only the files that need to be updated, with their
+        //    newly merged states.
         ...Object.fromEntries(
+          // 5a. `Object.entries(filesWithNewState)` converts the input object
+          //     (e.g., { fileId1: { progress: 50 }, fileId2: { error: 'failed' } })
+          //     into an array of [key, value] pairs:
+          //     [ [fileId1, { progress: 50 }], [fileId2, { error: 'failed' }] ]
           Object.entries(filesWithNewState).map(([fileID, newFileState]) => [
-            fileID,
+            // 5b. For each file being patched:
+            fileID, // File ID remains the same
             {
+              // 5c. Take the current state of this specific file.
               ...existingFilesState[fileID],
+              // 5d. Spread the `newFileState` (the patch) over it.
+              //     This merges the new properties. If a property exists in both,
+              //     the one from `newFileState` overwrites the existing one.
+              //     New properties from `newFileState` are added.
               ...newFileState,
             },
           ]),
         ),
+        // 6. The result of `Object.fromEntries(...)` is an object like:
+        //    { fileId1: { ...mergedStateForFile1... }, fileId2: { ...mergedStateForFile2... } }
+        //    This object is then spread over `existingFilesState`.
+        //    Effectively, it overwrites the entries for `fileId1` and `fileId2`
+        //    in the `files` object with their new, merged states.
       },
     })
   }
@@ -586,6 +726,8 @@ export class Uppy<
   /**
    * Shorthand to set state for a specific file.
    */
+
+  // ? Done
   setFileState(fileID: string, state: Partial<UppyFile<M, B>>): void {
     if (!this.getState().files[fileID]) {
       throw new Error(
@@ -596,17 +738,33 @@ export class Uppy<
     this.patchFilesState({ [fileID]: state })
   }
 
+  // ? Done
   i18nInit(): void {
     const onMissingKey = (key: string): void =>
       this.log(`Missing i18n string: ${key}`, 'error')
+
     const translator = new Translator([this.defaultLocale, this.opts.locale], {
       onMissingKey,
     })
+
+    // this.i18n = translator.translate.bind(translator)
+    // The translate method of the Translator instance is assigned to this.i18n.
+    // .bind(translator) ensures that when this.i18n('someKey') is called, this inside the
+    // translate method correctly refers to the translator instance.
+    // this.i18n becomes the primary function Uppy and its plugins will use to get translated strings. For example,
+    // this.i18n('chooseFiles') would return the translation for the "Choose files" string.
+
+
+    // if we don't bind the translator , `this` inside the `translate` method
+    // will likely be `undefined` as it will be called as a standalone function
+    // binding ensures that `this` inside the `translate` method always
+    // refers to the `translator` instance, allowing access to its properties and methods.
     this.i18n = translator.translate.bind(translator)
     this.i18nArray = translator.translateArray.bind(translator)
     this.locale = translator.locale
   }
 
+// is used to update the configuration options of an existing Uppy instance after it has been initialized.
   setOptions(newOpts: MinimalRequiredOptions<M, B>): void {
     this.opts = {
       ...this.opts,
@@ -842,6 +1000,8 @@ export class Uppy<
     }
   }
 
+  // ? Done !
+  // process list of errors and communicate them to the uppy's event system
   #informAndEmit(
     errors: {
       name: string
@@ -854,17 +1014,21 @@ export class Uppy<
   ): void {
     for (const error of errors) {
       if (error.isRestriction) {
+// If error.isRestriction is true, it emits a 'restriction-failed' event
+// plugins and UI components can listen to this and react acordingly for restriction errors
         this.emit(
           'restriction-failed',
           error.file,
           error as RestrictionError<M, B>,
         )
       } else {
+        // else return a generic error event , which will trigger the errorHandler
         this.emit('error', error, error.file)
       }
       this.log(error, 'warning')
     }
 
+    // filter out user-facing errors
     const userFacingErrors = errors.filter((error) => error.isUserFacing)
 
     // don't flood the user: only show the first 4 toasts
@@ -872,10 +1036,16 @@ export class Uppy<
     const firstErrors = userFacingErrors.slice(0, maxNumToShow)
     const additionalErrors = userFacingErrors.slice(maxNumToShow)
     firstErrors.forEach(({ message, details = '' }) => {
+      // ! inside info() method `info-visible` event is emitted
       this.info({ message, details }, 'error', this.opts.infoTimeout)
     })
 
+    //
     if (additionalErrors.length > 0) {
+      // below message is passed to this.info method and message is translated using
+      // i18n method , and count is passed as an options object to fill in the placeholder
+      // of the message
+      // example message: "There were 3 additional errors"
       this.info({
         message: this.i18n('additionalRestrictionsFailed', {
           count: additionalErrors.length,
@@ -1601,6 +1771,20 @@ export class Uppy<
    */
   #addListeners(): void {
     // Type inference only works for inline functions so we have to type it again
+
+
+    // the above line means if we had described the listener inline, TypeScript would have inferred the type
+    // without having to explicitly type it again.
+    /*
+    this.on('error', (err, file, response) => {
+    here typecript would have inferred the type of `err` as `UppyEventMap<M, B>['error']`
+    */
+  //  but since the reason we defined it as a seaparte function is to
+  // is so that it can be reused in upload-error event handler
+  // as errorHandler performs the basic state updates which are also
+  // required in the case of upload-error , if this was added as inline
+  // then the same logic inside errorHandler would have been duplicated
+  // twice in case of error and upload-error events
     const errorHandler: UppyEventMap<M, B>['error'] = (
       error,
       file,
@@ -1624,8 +1808,18 @@ export class Uppy<
     this.on('error', errorHandler)
 
     this.on('upload-error', (file, error, response) => {
+      // errorHandler does the basic state updates , like setting error message
+      // to state and set error message to file state
       errorHandler(error, file, response)
-
+/*
+Then, it proceeds with additional logic specific to upload errors:
+It logs the original error message.
+It creates a new, more user-friendly Error object using this.i18n to provide a localized "Failed to upload..." message.
+It marks this new error as isUserFacing.
+It potentially adds more details to this new error.
+Finally, it uses this.#informAndEmit to display
+this user-facing error (e.g., as a toast notification via the Informer plugin).
+*/
       if (typeof error === 'object' && error.message) {
         this.log(error.message, 'error')
         const newError = new Error(
@@ -1636,6 +1830,8 @@ export class Uppy<
         if (error.details) {
           newError.details += ` ${error.details}`
         }
+        //! inside informAndEmit either `restriction-failed` or `error` event is emitted
+        //! depending on the error.isRestriction flag
         this.#informAndEmit([newError])
       } else {
         this.#informAndEmit([error])
@@ -1975,6 +2171,13 @@ export class Uppy<
     }
   }
 
+  /**
+   * is responsible for removing the oldest informational message from the queue of messages displayed to the user.
+   * Emits `info-hidden` event.
+   * `info-hidden` event signals to other parts of the Uppy system or plugins that
+   * an informational message has just been hidden. , this could be used for logging, analytics, or other custom behaviors.
+   */
+
   hideInfo(): void {
     const { info } = this.getState()
 
@@ -1984,8 +2187,13 @@ export class Uppy<
   }
 
   /**
-   * Set info message in `state.info`, so that UI plugins like `Informer`
-   * can display the message.
+   * this.info() method is used to display informational messages to the user
+   * often through a UI plugin like @uppy/informer which renders them as toast
+   * like notifications.
+   * Summary of this.info() method:
+   * - Adds a new informational message (with its type, content, and details) to Uppy's central state.
+   * - Sets a timer (default duration 3000) to automatically hide this message after a specified duration.
+   * - Emits an event to notify that a new info message is visible.
    */
   info(
     message:
@@ -1996,6 +2204,7 @@ export class Uppy<
   ): void {
     const isComplexMessage = typeof message === 'object'
 
+    // udpate state with new info message
     this.setState({
       info: [
         ...this.getState().info,
@@ -2007,6 +2216,7 @@ export class Uppy<
       ],
     })
 
+    //! inside hideInfo() `info-hidden` is emmitted
     setTimeout(() => this.hideInfo(), duration)
 
     this.emit('info-visible')

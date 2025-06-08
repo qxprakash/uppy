@@ -18,6 +18,7 @@ export interface Store<T extends GenericState> {
   subscribe(listener: Listener<T>): () => void
 }
 
+type Args<T> = Parameters<Listener<T>>;
 /**
  * Default store that keeps state in a simple object.
  */
@@ -41,13 +42,17 @@ class DefaultStore<T extends GenericState = GenericState> implements Store<T> {
   }
 
   subscribe(listener: Listener<T>): () => void {
+    // listener the param is a function here who's type is Listener<T>
+    // it in a function that takes three arguments: prevState, nextState, and patch
+    // to subscribe that listener we add it to the callbacks set
+    // and return a function that removes the listener from the set
     this.#callbacks.add(listener)
     return () => {
       this.#callbacks.delete(listener)
     }
   }
 
-  #publish(...args: Parameters<Listener<T>>): void {
+  #publish(...args: Args<T>): void {
     this.#callbacks.forEach((listener) => {
       listener(...args)
     })
