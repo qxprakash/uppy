@@ -547,6 +547,7 @@ export class Uppy<
     this.#addListeners()
   }
 
+  // ? Done
   emit<T extends keyof UppyEventMap<M, B>>(
     event: T,
     ...args: Parameters<UppyEventMap<M, B>[T]>
@@ -595,7 +596,7 @@ uppy
 // The this.#emitter.on(event, callback) line does the actual work of registering the event listener with the internal event
 // emitter instance (this.#emitter). The return this line then simply returns the Uppy instance itself,
 // making the next .on(...) call (or any other Uppy method) possible on the same line.
-
+  // ? Done
   on<K extends keyof UppyEventMap<M, B>>(
     event: K,
     callback: UppyEventMap<M, B>[K],
@@ -604,6 +605,7 @@ uppy
     return this
   }
 
+  // ? Done
   once<K extends keyof UppyEventMap<M, B>>(
     event: K,
     callback: UppyEventMap<M, B>[K],
@@ -612,6 +614,7 @@ uppy
     return this
   }
 
+  // ? Done
   off<K extends keyof UppyEventMap<M, B>>(
     event: K,
     callback: UppyEventMap<M, B>[K],
@@ -625,6 +628,8 @@ uppy
    * Called each time state changes.
    *
    */
+
+  // ? Done
   updateAll(state: Partial<State<M, B>>): void {
     this.iteratePlugins((plugin: UnknownPlugin<M, B>) => {
       plugin.update(state)
@@ -634,6 +639,7 @@ uppy
   /**
    * Updates state with a patch
    */
+  // ? Done
   setState(patch?: Partial<State<M, B>>): void {
     this.store.setState(patch)
   }
@@ -641,6 +647,7 @@ uppy
   /**
    * Returns current state.
    */
+  // ? Done
   getState(): State<M, B> {
     return this.store.getState()
   }
@@ -765,7 +772,8 @@ The new files state would become:
   }
 
 // is used to update the configuration options of an existing Uppy instance after it has been initialized.
-  setOptions(newOpts: MinimalRequiredOptions<M, B>): void {
+// ? Done
+setOptions(newOpts: MinimalRequiredOptions<M, B>): void {
     this.opts = {
       ...this.opts,
       ...(newOpts as UppyOptions<M, B>),
@@ -791,6 +799,7 @@ The new files state would become:
     this.setState(undefined) // so that UI re-renders with new options
   }
 
+  // ? Done
   resetProgress(): void {
     const defaultProgress: Omit<FileProgressNotStarted, 'bytesTotal'> = {
       percentage: 0,
@@ -819,6 +828,9 @@ The new files state would become:
     this.setState({ files: updatedFiles, ...defaultUploadState })
   }
 
+  // The clear method is designed to reset the Uppy instance to a clean state,
+  // Effectively removing all files and resetting upload-related progress and error information.
+  // ? Done
   clear(): void {
     const { capabilities, currentUploads } = this.getState()
     if (
@@ -833,30 +845,37 @@ The new files state would become:
     this.setState({ ...defaultUploadState, files: {} })
   }
 
+  // ? Done
   addPreProcessor(fn: Processor): void {
     this.#preProcessors.add(fn)
   }
 
+  // ? Done
   removePreProcessor(fn: Processor): boolean {
     return this.#preProcessors.delete(fn)
   }
 
+  // ? Done
   addPostProcessor(fn: Processor): void {
     this.#postProcessors.add(fn)
   }
 
+  // ? Done
   removePostProcessor(fn: Processor): boolean {
     return this.#postProcessors.delete(fn)
   }
 
+  // ? Done
   addUploader(fn: Processor): void {
     this.#uploaders.add(fn)
   }
 
+  // ? Done
   removeUploader(fn: Processor): boolean {
     return this.#uploaders.delete(fn)
   }
 
+  // ? Done
   setMeta(data: Partial<M>): void {
     const updatedMeta = { ...this.getState().meta, ...data }
     const updatedFiles = { ...this.getState().files }
@@ -877,6 +896,7 @@ The new files state would become:
     })
   }
 
+  // ? Done
   setFileMeta(fileID: string, data: State<M, B>['meta']): void {
     const updatedFiles = { ...this.getState().files }
     if (!updatedFiles[fileID]) {
@@ -885,6 +905,7 @@ The new files state would become:
       )
       return
     }
+    // spread the existing meta and the new data which is the new meta , this would merge and update the meta object
     const newMeta = { ...updatedFiles[fileID].meta, ...data }
     updatedFiles[fileID] = { ...updatedFiles[fileID], meta: newMeta }
     this.setState({ files: updatedFiles })
@@ -893,6 +914,7 @@ The new files state would become:
   /**
    * Get a file object.
    */
+  // ? Done
   getFile(fileID: string): UppyFile<M, B> {
     return this.getState().files[fileID]
   }
@@ -900,11 +922,13 @@ The new files state would become:
   /**
    * Get all files in an array.
    */
+  // ? Done
   getFiles(): UppyFile<M, B>[] {
     const { files } = this.getState()
     return Object.values(files)
   }
 
+  // ? Done
   getFilesByIds(ids: string[]): UppyFile<M, B>[] {
     return ids.map((id) => this.getFile(id))
   }
@@ -1054,6 +1078,7 @@ The new files state would become:
     }
   }
 
+  // ? No Need to delve into this for now seems obvious with the definition
   validateRestrictions(
     file: ValidateableFile<M, B>,
     files: ValidateableFile<M, B>[] = this.getFiles(),
@@ -1066,6 +1091,7 @@ The new files state would become:
     return null
   }
 
+  // ? No Need to delve into this for now seems obvious with the definition
   validateSingleFile(file: ValidateableFile<M, B>): string | null {
     try {
       this.#restricter.validateSingleFile(file)
@@ -1075,6 +1101,7 @@ The new files state would become:
     return null
   }
 
+  // ? No Need to delve into this for now seems obvious with the definition
   validateAggregateRestrictions(
     files: ValidateableFile<M, B>[],
   ): string | null {
@@ -1087,6 +1114,8 @@ The new files state would become:
     return null
   }
 
+  // ? No Need to delve into this for now seems obvious with the definition
+  // ! inside checkRequiredMetaFieldsOnFile `restriction-failed` event is emitted
   #checkRequiredMetaFieldsOnFile(file: UppyFile<M, B>): boolean {
     const { missingFields, error } =
       this.#restricter.getMissingRequiredMetaFields(file)
@@ -1103,9 +1132,11 @@ The new files state would become:
     return true
   }
 
+  // ? No Need to delve into this for now seems obvious with the definition
   #checkRequiredMetaFields(files: State<M, B>['files']): boolean {
     let success = true
     for (const file of Object.values(files)) {
+      // ! checkRequiredMetaFields emits `restriction-failed` event if missingFields.length > 0
       if (!this.#checkRequiredMetaFieldsOnFile(file)) {
         success = false
       }
@@ -1113,6 +1144,7 @@ The new files state would become:
     return success
   }
 
+  // ? No Need to delve into this for now seems obvious with the definition
   #assertNewUploadAllowed(file?: UppyFile<M, B>): void {
     const { allowNewUpload } = this.getState()
 
@@ -1123,11 +1155,14 @@ The new files state would become:
           file,
         },
       )
+      // ! inside informAndEmit `restriction-failed` or `error` event is emitted
+      // depending on the error.isUserFacing property
       this.#informAndEmit([error])
       throw error
     }
   }
 
+  // ? No Need to delve into this for now seems obvious with the definition
   checkIfFileAlreadyExists(fileID: string): boolean {
     const { files } = this.getState()
 
@@ -1140,6 +1175,7 @@ The new files state would become:
   /**
    * Create a file state object based on user-provided `addFile()` options.
    */
+  // * should look in more detail but fine for now
   #transformFile(fileDescriptorOrFile: File | UppyFile<M, B>): UppyFile<M, B> {
     // Uppy expects files in { name, type, size, data } format.
     // If the actual File object is passed from input[type=file] or drag-drop,
@@ -1194,8 +1230,11 @@ The new files state would become:
   }
 
   // Schedule an upload if `autoProceed` is enabled.
+
+  // ? No Need to delve into this for now seems obvious with the definition
   #startIfAutoProceed(): void {
     if (this.opts.autoProceed && !this.scheduledAutoProceed) {
+      // ? Prakash's Question: why even schedule this ? with 4 ms delay shouldn't this be done immediately ?
       this.scheduledAutoProceed = setTimeout(() => {
         this.scheduledAutoProceed = null
         this.upload().catch((err) => {
@@ -1207,6 +1246,8 @@ The new files state would become:
     }
   }
 
+
+  // * went through it but need to revisit specially the last part
   #checkAndUpdateFileState(filesToAdd: UppyFile<M, B>[]): {
     nextFilesState: State<M, B>['files']
     validFilesToAdd: UppyFile<M, B>[]
@@ -1221,6 +1262,8 @@ The new files state would become:
 
     for (const fileToAdd of filesToAdd) {
       try {
+        // ? transformFile is used to create a file state object based on user-provided `addFile()` options.
+        // ? and returns a UppyFile<M, B> object
         let newFile = this.#transformFile(fileToAdd)
 
         // If a file has been recovered (Golden Retriever), but we were unable to recover its data (probably too large),
@@ -1240,6 +1283,10 @@ The new files state would become:
           )
         }
 
+        // onBeforeFileAdded is a boolean which indicates whether the file id already
+        // exists in the files array or not.
+        // If it returns false (meaning that file is a duplicate), the file will not be added.
+        // Uppy will typically prevent the file from being added and might show a "noDuplicates" error.
         const onBeforeFileAddedResult = this.opts.onBeforeFileAdded(
           newFile,
           nextFilesState,
@@ -1249,6 +1296,7 @@ The new files state would become:
           !onBeforeFileAddedResult &&
           this.checkIfFileAlreadyExists(newFile.id)
         ) {
+          // thorw a RestrictionError if the file is a duplicate
           throw new RestrictionError(
             this.i18n('noDuplicates', {
               fileName: newFile.name ?? this.i18n('unnamed'),
@@ -1258,16 +1306,24 @@ The new files state would become:
         }
 
         // Pass through reselected files from Golden Retriever
+
+        /*
+        A "ghost" file is a file whose metadata was restored by a plugin like Golden Retriever,
+        but its actual data (the blob) was missing and needs to be re-selected by the user.
+        */
         if (onBeforeFileAddedResult === false && !isGhost) {
           // Don’t show UI info for this error, as it should be done by the developer
           throw new RestrictionError(
             'Cannot add the file because onBeforeFileAdded returned false.',
             { isUserFacing: false, file: fileToAdd },
           )
-        } else if (
+        }
+        // this will be the where user has provided their own onBeforeFileAdded implementation which would return UppyFile
+        else if (
           typeof onBeforeFileAddedResult === 'object' &&
           onBeforeFileAddedResult !== null
         ) {
+
           newFile = onBeforeFileAddedResult
         }
 
@@ -1311,7 +1367,13 @@ The new files state would become:
    * try to guess file type in a clever way, check file against restrictions,
    * and start an upload if `autoProceed === true`.
    */
+
+  // ? done
   addFile(file: File | MinimalRequiredUppyFile<M, B>): UppyFile<M, B>['id'] {
+
+    // if State.allowNewUpload is false, this will throw an restriction error and
+    // call #informAndEmit which would emit a `restriction-failed` event or `error` event
+    // depending on the error.isUserFacing property
     this.#assertNewUploadAllowed(file as UppyFile<M, B>)
 
     const { nextFilesState, validFilesToAdd, errors } =
@@ -1324,6 +1386,9 @@ The new files state would become:
 
     this.setState({ files: nextFilesState })
 
+
+    // This says: "Take the array validFilesToAdd. Create a new constant called firstValidFileToAdd.
+    // Assign the value of the first element (at index 0) of the validFilesToAdd array to firstValidFileToAdd."
     const [firstValidFileToAdd] = validFilesToAdd
 
     this.emit('file-added', firstValidFileToAdd)
@@ -1360,7 +1425,8 @@ The new files state would become:
       nonRestrictionErrors.forEach((subError) => {
         message += `\n * ${subError.message}`
       })
-
+    // ? method is used to display informational messages to the user
+    // ? this.info emits an `info-visible` event and calls hideInfo() which emits an `info-hidden` event
       this.info(
         {
           message: this.i18n('addBulkFilesFailed', {
@@ -1407,50 +1473,79 @@ The new files state would become:
     }
   }
 
+
+  // is responsible for removing one or more files from the Uppy instance.
+  // This involves updating Uppy's internal state, handling associated uploads, and emitting relevant events.
+  // ? Done but need to revisit
   removeFiles(fileIDs: string[]): void {
     const { files, currentUploads } = this.getState()
+    // creates a shallow copy of the `files` and `currentUploads` objects
+    // this copy will be modified to remove the specified files.
     const updatedFiles = { ...files }
     const updatedUploads = { ...currentUploads }
 
+    // initializes an empty object that will store the file objects that are actually being removed.
+    // this is used later for emitting events.
     const removedFiles = Object.create(null)
+
+    // Iterate over the fileIDs checks if the file exists in existing state
+    // and add the files to be removed to `removedFiles` object
+    // and remove those files from `updatedFiles`.
     fileIDs.forEach((fileID) => {
       if (files[fileID]) {
         removedFiles[fileID] = files[fileID]
+        // delete that file from the updatedFiles object
         delete updatedFiles[fileID]
       }
     })
 
-    // Remove files from the `fileIDs` list in each upload.
+    // It is a helper function used as a filter. It returns true if a given uploadFileID
+    // is not in the removedFiles object i.e. it's not one of the files being removed.
     function fileIsNotRemoved(uploadFileID: string): boolean {
       return removedFiles[uploadFileID] === undefined
     }
 
+    // Iterates over each ongoing or pending upload.
     Object.keys(updatedUploads).forEach((uploadID) => {
+    // For each upload, it filters its list of associated fileIDs
+    // keeping only those that are not being removed.
       const newFileIDs =
         currentUploads[uploadID].fileIDs.filter(fileIsNotRemoved)
 
-      // Remove the upload if no files are associated with it anymore.
+      // If an upload becomes empty:
+      // If all files associated with an upload have been removed, that upload itself is no longer relevant.
       if (newFileIDs.length === 0) {
+        // hence delete the entire upload entry from `updatedUploads`.
         delete updatedUploads[uploadID]
         return
       }
 
+      // get capabilities object from the current state
       const { capabilities } = this.getState()
+
+      // If Some files were removed from an upload, but not all, so the upload still exists,
+      // and The currently active uploader plugin does support individual file cancellation, with an ongoing batch
       if (
         newFileIDs.length !== currentUploads[uploadID].fileIDs.length &&
         !capabilities.individualCancellation
       ) {
+        // then throw an error
         throw new Error(
           'The installed uploader plugin does not allow removing files during an upload.',
         )
       }
 
+      // update the upload with remaining files
+      // if the upload still has files and individual cancellation is allowed (or no files were part of an active
+      // upload that disallows it), the upload entry in updatedUploads
+      // is updated with the new filtered list of fileIDs.
       updatedUploads[uploadID] = {
         ...currentUploads[uploadID],
         fileIDs: newFileIDs,
       }
     })
 
+    // update state with modified `updatedUploads` and `updatedFiles`
     const stateUpdate: Partial<State<M, B>> = {
       currentUploads: updatedUploads,
       files: updatedFiles,
@@ -1461,12 +1556,17 @@ The new files state would become:
     if (Object.keys(updatedFiles).length === 0) {
       stateUpdate.allowNewUpload = true
       stateUpdate.error = null
+      // Clears any state recovered by plugins like Golden Retriever.
       stateUpdate.recoveredState = null
     }
 
     this.setState(stateUpdate)
+    //  Recalculates and updates the total upload progress (throttled to avoid excessive updates).
     this.#updateTotalProgressThrottled()
 
+
+    // For each file that was removed, a 'file-removed' event is emitted, passing the full file object.
+    // This allows plugins and UI components to react to the removal.
     const removedFileIDs = Object.keys(removedFiles)
     removedFileIDs.forEach((fileID) => {
       this.emit('file-removed', removedFiles[fileID])
@@ -1479,10 +1579,12 @@ The new files state would become:
     }
   }
 
+  // ? Done
   removeFile(fileID: string): void {
     this.removeFiles([fileID])
   }
 
+  // ? Done
   pauseResume(fileID: string): boolean | undefined {
     if (
       !this.getState().capabilities.resumableUploads ||
@@ -1492,84 +1594,129 @@ The new files state would become:
     }
 
     const file = this.getFile(fileID)
+    // `wasPaused` is a boolean that indicates whether the file was paused before this method was called.
+    // if file.isPaused is undefined, it defaults to false.
     const wasPaused = file.isPaused || false
+    // this is the core toggle logic if it was paused, it will be resumed, and vice versa
     const isPaused = !wasPaused
 
+    // Update the file state with the new pause/resume status
     this.setFileState(fileID, {
       isPaused,
     })
 
+    // ! this Emits an 'upload-pause' event, which is used to notify plugins that the upload has been paused or resumed.
     this.emit('upload-pause', file, isPaused)
 
+
+    // return the new pause/resume status which was set in the file state
     return isPaused
   }
 
+  // this method pauses all files that are in progress and not completed.
+  // ? Done
   pauseAll(): void {
+    // get shallow copy of the current files state
     const updatedFiles = { ...this.getState().files }
+
+    // filter the files that are in progress and not completed
     const inProgressUpdatedFiles = Object.keys(updatedFiles).filter((file) => {
+      // check if the file is in progress and not completed
+      // i.e. uploadStarted is not null and uploadComplete is false
       return (
         !updatedFiles[file].progress.uploadComplete &&
         updatedFiles[file].progress.uploadStarted
       )
     })
 
+    // for each file that is in progress, set its isPaused to true
     inProgressUpdatedFiles.forEach((file) => {
+
+      // ? Question why aren't we setting the error to null here same as in resumeAll as seen below?
       const updatedFile = { ...updatedFiles[file], isPaused: true }
+      // and add that file state to updatedFiles object
       updatedFiles[file] = updatedFile
     })
 
+    // update the uppy files state with the updatedFiles object
     this.setState({ files: updatedFiles })
+
+    // ! this Emits an 'upload-pause' event, which is used to notify plugins that the upload has been paused.
     this.emit('pause-all')
   }
 
+  // This method resumes all files that are in progress and not completed.
+  // ? Done
   resumeAll(): void {
+    // get a shallow copy of the current files state
     const updatedFiles = { ...this.getState().files }
+
+    // filter the files that are in progress and not completed
     const inProgressUpdatedFiles = Object.keys(updatedFiles).filter((file) => {
+      // check if the file is in progress and not completed
+      // i.e. uploadStarted is not null and uploadComplete is false
       return (
         !updatedFiles[file].progress.uploadComplete &&
         updatedFiles[file].progress.uploadStarted
       )
     })
 
+    // for each file that is in progress, set its isPaused to false and error to null
     inProgressUpdatedFiles.forEach((file) => {
       const updatedFile = {
         ...updatedFiles[file],
         isPaused: false,
         error: null,
       }
+      // and add that file state to updatedFiles object
       updatedFiles[file] = updatedFile
     })
-    this.setState({ files: updatedFiles })
 
+    // update the uppy files state with the updatedFiles object
+    this.setState({ files: updatedFiles })
+    // ! this Emits an 'upload-resume' event, which is used to notify plugins that the upload has been resumed.
     this.emit('resume-all')
   }
 
+  // This method returns an array containing only the IDs of the files that have an error.
+  // ? Done
   #getFilesToRetry() {
+    // get the current files state
     const { files } = this.getState()
+    // filter the files that have an error
     return Object.keys(files).filter((file) => {
       return files[file].error
     })
   }
 
+  // This method retries upload for all files that have an error.
+  // ? Done
   async #doRetryAll(): Promise<UploadResult<M, B> | undefined> {
+    // get the IDs of the files that have an error
     const filesToRetry = this.#getFilesToRetry()
 
+    // create a shallow copy of the current files state
     const updatedFiles = { ...this.getState().files }
+
+    // for each file that has an error, set its isPaused to false and error to null in file object
     filesToRetry.forEach((fileID) => {
       updatedFiles[fileID] = {
         ...updatedFiles[fileID],
         isPaused: false,
-        error: null,
+        error: null, // clear the error state of each individual file in files array
       }
     })
 
+    // update the uppy state with updatedFiles object and set error to null in Uppy State
     this.setState({
       files: updatedFiles,
-      error: null,
+      error: null, // clear the global error state in Uppy State
     })
 
+    // ! Emit an event 'retry-all' with the files that are being retried
     this.emit('retry-all', this.getFilesByIds(filesToRetry))
 
+    // If there are no files to retry, return an empty UploadResult
     if (filesToRetry.length === 0) {
       return {
         successful: [],
@@ -1577,37 +1724,48 @@ The new files state would become:
       }
     }
 
+    // If there are files to retry, create a new upload with those files
     const uploadID = this.#createUpload(filesToRetry, {
       forceAllowNewUpload: true, // create new upload even if allowNewUpload: false
     })
     return this.#runUpload(uploadID)
   }
 
+  // ? Done
   async retryAll(): Promise<UploadResult<M, B> | undefined> {
     const result = await this.#doRetryAll()
+    // ! This emits a `complete` event with the result (result is upload result) from #doRetryAll -> #runUpload
     this.emit('complete', result!)
     return result
   }
 
+  // ? Done
   cancelAll(): void {
+    // ! This emits a `cancel-all` event.
     this.emit('cancel-all')
 
+    // gets the files array from uppy state
     const { files } = this.getState()
 
+    // creates an array of file IDs from the files object Keys
     const fileIDs = Object.keys(files)
+
+    // if fileIDs array is not empty, it calls removeFiles method with fileIDs array
     if (fileIDs.length) {
       this.removeFiles(fileIDs)
     }
-
+    // resets the the upload state to it's default values
     this.setState(defaultUploadState)
   }
 
+  // ? Done
+  // Retries upload for a specific file by its ID.
   retryUpload(fileID: string): Promise<UploadResult<M, B> | undefined> {
     this.setFileState(fileID, {
       error: null,
       isPaused: false,
     })
-
+    // ! This emits an `upload-retry` event with the file object that is being retried.
     this.emit('upload-retry', this.getFile(fileID))
 
     const uploadID = this.#createUpload([fileID], {
@@ -1616,17 +1774,24 @@ The new files state would become:
     return this.#runUpload(uploadID)
   }
 
+// ? Done
   logout(): void {
     this.iteratePlugins((plugin) => {
       ;(plugin as UnknownProviderPlugin<M, B>).provider?.logout?.()
     })
   }
 
+//  * Done but need to revisit
   #handleUploadProgress = (
     file: UppyFile<M, B> | undefined,
     progress: FileProgressStarted,
   ) => {
+    // get the latest file state from the store , because the file state which has been passed in the params
+    // might be slightly old , so get the latest file state from the store
     const fileInState = file ? this.getFile(file.id) : undefined
+
+    // if the file is not in state or has been removed, we don't set progress
+    // we just log a message and return
     if (file == null || !fileInState) {
       this.log(
         `Not setting progress for a file that has been removed: ${file?.id}`,
@@ -1634,6 +1799,8 @@ The new files state would become:
       return
     }
 
+    // if the file in uppy's state has already been uploaded, we don't set progress
+    // just log a message and return
     if (fileInState.progress.percentage === 100) {
       this.log(
         `Not setting progress for a file that has been already uploaded: ${file.id}`,
@@ -1641,10 +1808,13 @@ The new files state would become:
       return
     }
 
+    // calculate new progress
     const newProgress = {
       bytesTotal: progress.bytesTotal,
       // bytesTotal may be null or zero; in that case we can't divide by it
       percentage:
+      // check if bytesTotal is a valid positive number only then calculate percentage
+      // if bytesTotal is null or zero, percentage will be undefined
         (
           progress.bytesTotal != null &&
           Number.isFinite(progress.bytesTotal) &&
@@ -1653,6 +1823,13 @@ The new files state would become:
           Math.round((progress.bytesUploaded / progress.bytesTotal) * 100)
         : undefined,
     }
+
+    // if the file upload has started (timestamp is already set in the file's progress. uploadStarted is typically
+    // set by the 'upload-start' event handler), update the file state with
+    // progress with newProgress (percentage and bytesTotal) calculated above
+
+    // If uploadStarted is set, it means the upload is truly in progress, and it's safe to update
+    // bytesUploaded with the value from the current progress event.
 
     if (fileInState.progress.uploadStarted != null) {
       this.setFileState(file.id, {
@@ -1663,6 +1840,11 @@ The new files state would become:
         },
       })
     } else {
+
+    // If uploadStarted is null, it might mean this progress event is arriving before the formal 'upload-start' event
+    // was processed for this file, or it's a progress event for a pre-processing step. In this case, it only updates
+    // bytesTotal and percentage from newProgress but not bytesUploaded.
+    // The bytesUploaded is initialized to 0 when uploadStarted is set.
       this.setFileState(file.id, {
         progress: {
           ...fileInState.progress,
@@ -1674,7 +1856,9 @@ The new files state would become:
     this.#updateTotalProgressThrottled()
   }
 
+  // ? Done
   #updateTotalProgress() {
+    // returns a number between 0 and 1, or 0.
     const totalProgress = this.#calculateTotalProgress()
     let totalProgressPercent: number | null = null
     if (totalProgress != null) {
@@ -1683,6 +1867,7 @@ The new files state would become:
       else if (totalProgressPercent < 0) totalProgressPercent = 0
     }
 
+    // ! This emits a `progress` event with the total progress percentage. or 0 if totalProgressPercent is null
     this.emit('progress', totalProgressPercent ?? 0)
     this.setState({
       totalProgress: totalProgressPercent ?? 0,
@@ -1696,6 +1881,7 @@ The new files state would become:
   //    and click 'ADD MORE FILES', - focus won't activate in Firefox.
   //    - We must throttle at around >500ms to avoid performance lags.
   //    [Practical Check] Firefox, try to upload a big file for a prolonged period of time. Laptop will start to heat up.
+  // ? Prakash's Question: test this by yourself and figure out the reason for throttling
   #updateTotalProgressThrottled = throttle(
     () => this.#updateTotalProgress(),
     500,
@@ -1707,9 +1893,11 @@ The new files state would become:
     return this.#updateTotalProgress()
   }
 
+  // ? Done
   #calculateTotalProgress() {
     // calculate total progress, using the number of files currently uploading,
     // between 0 and 1 and sum of individual progress of each file
+
     const files = this.getFiles()
 
     // note: also includes files that have completed uploading:
@@ -1732,10 +1920,16 @@ The new files state would become:
       return 1
     }
 
+    // file whose total bytes is not null and not zero (bytes total is the file size in bytes)
+    // if file which is of 0 bytes is added it will not be considered as sized file
+    // can be consisdered as sized file
     const isSizedFile = (file: UppyFile<M, B>) =>
       file.progress.bytesTotal != null && file.progress.bytesTotal !== 0
 
+    // filter files in progress into two categories: sized and unsized
     const sizedFilesInProgress = filesInProgress.filter(isSizedFile)
+
+    // meaning these files have 0 bytes size and their progress is started
     const unsizedFilesInProgress = filesInProgress.filter(
       (file) => !isSizedFile(file),
     )
@@ -1752,16 +1946,24 @@ The new files state would become:
       return null
     }
 
+    // calculate total size of all the sizedFiles which are in progress
     const totalFilesSize = sizedFilesInProgress.reduce(
+      // ? Prakash's comment: what is the purpose of falling back to 0 here ?
+      // ? as sizedFile.progress.bytesTotal can never be 0
       (acc, file) => acc + (file.progress.bytesTotal ?? 0),
       0,
     )
 
+    // calcualte total uploaded size of all the sizedFiles which are in progress
     const totalUploadedSize = sizedFilesInProgress.reduce(
       (acc, file) => acc + (file.progress.bytesUploaded || 0),
       0,
     )
 
+    // if totalFilesSize is 0, return total progress as 0
+    // this can happen if all files are of 0 bytes size
+    // else return totalUploadedSize / totalFilesSize
+    // this will return a value between 0 and 1
     return totalFilesSize === 0 ? 0 : totalUploadedSize / totalFilesSize
   }
 
@@ -1785,7 +1987,8 @@ The new files state would become:
   // required in the case of upload-error , if this was added as inline
   // then the same logic inside errorHandler would have been duplicated
   // twice in case of error and upload-error events
-    const errorHandler: UppyEventMap<M, B>['error'] = (
+  // ? Done
+  const errorHandler: UppyEventMap<M, B>['error'] = (
       error,
       file,
       response,
@@ -1806,7 +2009,7 @@ The new files state would become:
     }
 
     this.on('error', errorHandler)
-
+    // ? Done
     this.on('upload-error', (file, error, response) => {
       // errorHandler does the basic state updates , like setting error message
       // to state and set error message to file state
@@ -1845,7 +2048,16 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
       const { message } = error
       const details = files.map((file) => file.meta.name).join(', ')
       if (!uploadStalledWarningRecentlyEmitted) {
+        // ! this.info() emits an `info-visible` event
+        // ! and calls hideInfo() which emits an `info-hidden` event
         this.info({ message, details }, 'warning', this.opts.infoTimeout)
+
+// the warning message is displayed, this line sets the uploadStalledWarningRecentlyEmitted flag.
+// It uses setTimeout to schedule a function that will reset uploadStalledWarningRecentlyEmitted back
+// to null after this.opts.infoTimeout milliseconds.
+// This ensures that another "upload stalled" UI warning will not be shown until this timeout period has
+// elapsed, even if more upload-stalled events are received in the meantime.
+
         uploadStalledWarningRecentlyEmitted = setTimeout(() => {
           uploadStalledWarningRecentlyEmitted = null
         }, this.opts.infoTimeout)
@@ -1853,11 +2065,19 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
       this.log(`${message} ${details}`.trim(), 'warning')
     })
 
+
+// this.setState({ error: null }): It clears any global error message from Uppy's state.
+// This is a good practice to ensure that a new upload attempt starts with a clean slate,
+// removing any error messages from previous failed attempts.
     this.on('upload', () => {
       this.setState({ error: null })
     })
 
     const onUploadStarted = (files: UppyFile<M, B>[]): void => {
+      // filter files by checking whether they actually exist in the state
+      // this is is a safety check , as the file might have been removed
+      // by the user between the time the upload was queued and when it
+      // actually starts. if it doesn't exist, we log a message and don't update the progress.
       const filesFiltered = files.filter((file) => {
         const exists = file != null && this.getFile(file.id)
         if (!exists)
@@ -1867,12 +2087,13 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
         return exists
       })
 
+      // if files exists, we proceed to set their initial upload progress state
       const filesState = Object.fromEntries(
         filesFiltered.map((file) => [
           file.id,
           {
             progress: {
-              uploadStarted: Date.now(),
+              uploadStarted: Date.now(), // set the upload started timestamp
               uploadComplete: false,
               bytesUploaded: 0,
               bytesTotal: file.size,
@@ -1881,8 +2102,19 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
         ]),
       )
 
+      // set the updated files state in uppy's state
       this.patchFilesState(filesState)
     }
+
+
+// eslint-disable-next-line max-len
+// this.on('upload-start', onUploadStarted) ([packages/@uppy/core/src/Uppy.ts:2006-2029][packages/@uppy/core/src/Uppy.ts]Uppy.ts ) ))
+
+// Event: 'upload-start' ([packages/@uppy/core/src/Uppy.ts:363-365][packages/@uppy/core/src/Uppy.ts]Uppy.ts ) ))
+
+// eslint-disable-next-line max-len
+// Triggered By: Typically emitted by uploader plugins (like Tus, XHRUpload) just before they begin the actual transmission of a batch of files. For example, in @uppy/tus it's emitted in #handleUpload ([packages/@uppy/tus/src/index.ts:528-532][packages/@uppy/tus/src/index.ts]index.ts ) )).
+
 
     this.on('upload-start', onUploadStarted)
 
@@ -1925,20 +2157,27 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
 
       this.#updateTotalProgressThrottled()
     })
+// Triggered By: Emitted by pre-processor plugins
+// (e.g., ThumbnailGenerator ([packages/@uppy/thumbnail-generator/src/index.ts:415-424]
+// [packages/@uppy/thumbnail-generator/src/index.ts]index.ts ) ))) to report progress on their tasks.
 
     this.on('preprocess-progress', (file, progress) => {
+      // Ensures the file hasn't been removed.
       if (file == null || !this.getFile(file.id)) {
         this.log(
           `Not setting progress for a file that has been removed: ${file?.id}`,
         )
         return
       }
+      // Updates the preprocess property within the file's progress object with the new progress information.
       this.setFileState(file.id, {
         progress: { ...this.getFile(file.id).progress, preprocess: progress },
       })
     })
 
+    // Triggered By: Emitted by pre-processor plugins when they have finished their task for a file.
     this.on('preprocess-complete', (file) => {
+      // Ensures the file hasn't been removed.
       if (file == null || !this.getFile(file.id)) {
         this.log(
           `Not setting progress for a file that has been removed: ${file?.id}`,
@@ -1946,22 +2185,30 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
         return
       }
       const files = { ...this.getState().files }
+      // This creates a copy of the files state, then a copy of the specific file's state,
+      // and then a copy of that file's progress state.
       files[file.id] = {
         ...files[file.id],
         progress: { ...files[file.id].progress },
       }
+      // delete files[file.id].progress.preprocess: Removes the preprocess property
+      // from the file's progress object, signifying that pre-processing is done.
       delete files[file.id].progress.preprocess
 
+      // update uppy's state with the modified files object
       this.setState({ files })
     })
-
+// eslint-disable-next-line max-len
+// Emitted by post-processor plugins (e.g., Transloadit ([packages/@uppy/transloadit/src/index.ts:759-775][packages/@uppy/transloadit/src/index.ts]index.ts ) ))) to report progress on their tasks after a file upload.
     this.on('postprocess-progress', (file, progress) => {
+      // Ensures the file hasn't been removed.
       if (file == null || !this.getFile(file.id)) {
         this.log(
           `Not setting progress for a file that has been removed: ${file?.id}`,
         )
         return
       }
+      // Updates the postprocess property within the file's progress object with the new progress information.
       this.setFileState(file.id, {
         progress: {
           ...this.getState().files[file.id].progress,
@@ -1969,17 +2216,23 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
         },
       })
     })
-
+// Triggered By: Emitted by post-processor plugins when they have finished their task.
+// Also emitted inside #runUpload as a fallback if post-processors don't emit it themselves.
     this.on('postprocess-complete', (file) => {
       if (file == null || !this.getFile(file.id)) {
+        // Ensures the file hasn't been removed.
         this.log(
           `Not setting progress for a file that has been removed: ${file?.id}`,
         )
         return
       }
+      // Creates a copy of the files state, then a copy of the specific file's state,
+      // and then a copy of that file's progress state.
       const files = {
         ...this.getState().files,
       }
+      // deletes the postprocess property from the file's progress object,
+      // signifying that post-processing is done.
       files[file.id] = {
         ...files[file.id],
         progress: {
@@ -1988,17 +2241,29 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
       }
       delete files[file.id].progress.postprocess
 
+      // update uppy's state with the modified files object
       this.setState({ files })
     })
 
+
+    // eslint-disable-next-line max-len
+    // Emitted by plugins like Golden Retriever ([packages/@uppy/golden-retriever/src/index.ts:278-294][packages/@uppy/golden-retriever/src/index.ts]index.ts ) )
+    // after successfully restoring files and their states (e.g., after a browser crash or tab close).
     this.on('restored', () => {
       // Files may have changed--ensure progress is still accurate.
+
+      // ? Prakash's Comment: Recalculates and updates the total progress. This is important because
+      // ? the restored files might have different progress states, or some files might not have been
+      // ? restored, affecting the overall progress.
       this.#updateTotalProgressThrottled()
     })
 
     // @ts-expect-error should fix itself when dashboard it typed (also this doesn't belong here)
+    // Triggered By: Emitted by a UI plugin (like Dashboard) after a user finishes editing a file's metadata.
     this.on('dashboard:file-edit-complete', (file) => {
       if (file) {
+        // This method validates if all required metadata fields (defined in Uppy's restrictions)
+        // are present for the edited file. If not, it might set an error on the file or emit a restriction-failed event.
         this.#checkRequiredMetaFieldsOnFile(file)
       }
     })
@@ -2011,15 +2276,19 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
     }
   }
 
+  // ? Done
   updateOnlineStatus(): void {
     const online = window.navigator.onLine ?? true
     if (!online) {
+      // ! this emits an `is-offline` event
       this.emit('is-offline')
       this.info(this.i18n('noInternetConnection'), 'error', 0)
       this.wasOffline = true
     } else {
+      // ! this emits an `is-online` event
       this.emit('is-online')
       if (this.wasOffline) {
+        // ! this emits a `back-online` event
         this.emit('back-online')
         this.info(this.i18n('connectedToInternet'), 'success', 3000)
         this.wasOffline = false
@@ -2027,8 +2296,12 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
     }
   }
 
+  // This pattern is used to ensure that when updateOnlineStatus is used as an event
+  // handler for browser events (like online and offline), the this context inside updateOnlineStatus
+  // correctly refers to the Uppy instance.
   #updateOnlineStatus = this.updateOnlineStatus.bind(this)
 
+  // ? Done
   getID(): string {
     return this.opts.id
   }
@@ -2036,12 +2309,20 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
   /**
    * Registers a plugin with Core.
    */
+
+  // The use method is  how you add and register plugins with an Uppy instance.
+  // Plugins extend Uppy's functionality, providing features like UI elements (e.g., Dashboard),
+  // upload sources (e.g., Webcam, GoogleDrive), or uploaders (e.g., Tus, XHRUpload).
   use<T extends typeof BasePlugin<any, M, B>>(
     Plugin: T,
     // We want to let the plugin decide whether `opts` is optional or not
     // so we spread the argument rather than defining `opts:` ourselves.
+    // ? Prakash's Comments:
+    //  removes the first parameter type from that list. The first parameter of a plugin's constructor
+    // is always the Uppy instance itself (this), which is passed implicitly later.
     ...args: OmitFirstArg<ConstructorParameters<T>>
   ): this {
+    // check if it's a valid plugin
     if (typeof Plugin !== 'function') {
       const msg =
         `Expected a plugin class, but got ${
@@ -2051,7 +2332,7 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
       throw new TypeError(msg)
     }
 
-    // Instantiate
+    // Instantiate the plugin with `this` as the Uppy instance and the provided arguments.
     const plugin = new Plugin(this, ...args)
     const pluginId = plugin.id
 
@@ -2059,10 +2340,14 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
       throw new Error('Your plugin must have an id')
     }
 
+    // Plugins also need a type property (e.g., 'acquirer', 'uploader',
+    // 'orchestrator', 'presenter', 'modifier', 'progressindicator'). If missing, an error is thrown.
+    // This type helps Uppy categorize and manage plugins.
     if (!plugin.type) {
       throw new Error('Your plugin must have a type')
     }
 
+    // this.getPlugin(pluginId) is called to check if a plugin with the same ID has already been registered.
     const existsPluginAlready = this.getPlugin(pluginId)
     if (existsPluginAlready) {
       const msg =
@@ -2079,12 +2364,18 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
     }
 
     if (plugin.type in this.#plugins) {
+      // if that type already exists in this.#plugins, we push the new plugin to that type's array
       this.#plugins[plugin.type].push(plugin)
     } else {
+      // if that type does not exist in this.#plugins, we create a new array with the new plugin
       this.#plugins[plugin.type] = [plugin]
     }
+    // Each plugin is expected to have an install() method (See BasePlugin class).
+    // This method is where the plugin typically sets up its event listeners, modifies
+    // Uppy's state if needed, or prepares its UI.
     plugin.install()
 
+    // ! This emits a `plugin-added` event with the plugin instance.
     this.emit('plugin-added', plugin)
 
     return this
@@ -2093,6 +2384,7 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
   /**
    * Find one Plugin by name.
    */
+  // ? Done
   getPlugin<T extends UnknownPlugin<M, B> = UnknownPlugin<M, B>>(
     id: string,
   ): T | undefined {
@@ -2113,6 +2405,7 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
    * Iterate through all `use`d plugins.
    *
    */
+  // ? Done
   iteratePlugins(method: (plugin: UnknownPlugin<M, B>) => void): void {
     Object.values(this.#plugins).flat(1).forEach(method)
   }
@@ -2152,6 +2445,7 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
   /**
    * Uninstall all plugins and close down this Uppy instance.
    */
+  // ? Done
   destroy(): void {
     this.log(
       `Closing Uppy instance ${this.opts.id}: removing all files and uninstalling plugins`,
@@ -2177,7 +2471,7 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
    * `info-hidden` event signals to other parts of the Uppy system or plugins that
    * an informational message has just been hidden. , this could be used for logging, analytics, or other custom behaviors.
    */
-
+  // ? Done
   hideInfo(): void {
     const { info } = this.getState()
 
@@ -2195,6 +2489,7 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
    * - Sets a timer (default duration 3000) to automatically hide this message after a specified duration.
    * - Emits an event to notify that a new info message is visible.
    */
+  // ? done
   info(
     message:
       | string
@@ -2226,6 +2521,8 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
    * Passes messages to a function, provided in `opts.logger`.
    * If `opts.logger: Uppy.debugLogger` or `opts.debug: true`, logs to the browser console.
    */
+
+  // ? Done
   log(message: unknown, type?: 'error' | 'warning'): void {
     const { logger } = this.opts
     switch (type) {
@@ -2253,12 +2550,21 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
   // (calling /refresh-token up to 6 times), which will probably fail for some providers
   #requestClientById = new Map<string, unknown>()
 
+
+  // ? Done
   registerRequestClient(id: string, client: unknown): void {
     this.#requestClientById.set(id, client)
   }
 
   /** @protected */
   getRequestClientForFile<Client>(file: UppyFile<M, B>): Client {
+    // This is the first check. file.remote is an object containing details if the file
+    //  originates from a remote source (like Google Drive, Instagram, etc., usually via Uppy Companion).
+    // If file.remote is falsy (i.e., undefined or null), it means the file is not a remote file (it's likely a
+    // local file selected by the user).
+    // Request clients are typically only relevant for remote files. So, if it's not a remote file,
+    // the method throws an error because it doesn't make sense to ask for a request client for a local file in this context.
+
     if (!file.remote)
       throw new Error(
         `Tried to get RequestClient for a non-remote file ${file.id}`,
@@ -2276,9 +2582,14 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
   /**
    * Restore an upload by its ID.
    */
+  // ? Done but with questions
   restore(uploadID: string): Promise<UploadResult<M, B> | undefined> {
     this.log(`Core: attempting to restore upload "${uploadID}"`)
 
+    // ? Question: if that upload ID does not exist in currentUploads,
+    // ? then what's the point of calling #removeUpload(uploadID) ?
+    // ? as remove upload will attempt to remove that upload from currentUploads
+    // ? based on the uploadID.
     if (!this.getState().currentUploads[uploadID]) {
       this.#removeUpload(uploadID)
       return Promise.reject(new Error('Nonexistent upload'))
@@ -2305,6 +2616,7 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
 
     const uploadID = nanoid()
 
+    //! This emits an upload event
     this.emit('upload', uploadID, this.getFilesByIds(fileIDs))
 
     this.setState({
@@ -2330,6 +2642,7 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
     return this.#createUpload(...args)
   }
 
+  // ? Done
   #getUpload(uploadID: string): CurrentUpload<M, B> {
     const { currentUploads } = this.getState()
 
@@ -2339,6 +2652,7 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
   /**
    * Add data to an upload's result object.
    */
+  // ? Done
   addResultData(uploadID: string, data: CurrentUpload<M, B>['result']): void {
     if (!this.#getUpload(uploadID)) {
       this.log(
@@ -2346,11 +2660,18 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
       )
       return
     }
+    // get the currentUploads from uppy State
     const { currentUploads } = this.getState()
+
+    // create a new currentUpload object by spreading the old and adding the new data i.e. result
+    // inside result spread the old result and spread the new data so that it get's updated
     const currentUpload = {
       ...currentUploads[uploadID],
       result: { ...currentUploads[uploadID].result, ...data },
     }
+
+    // update the uppy state with latest currentUpload object ,
+    // spread the old currentUploads and add the new updated one with the specific uploadID
     this.setState({
       currentUploads: { ...currentUploads, [uploadID]: currentUpload },
     })
@@ -2360,6 +2681,7 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
    * Remove an upload, eg. if it has been canceled or completed.
    *
    */
+  // ? Done
   #removeUpload(uploadID: string): void {
     const currentUploads = { ...this.getState().currentUploads }
     delete currentUploads[uploadID]
@@ -2372,19 +2694,45 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
   /**
    * Run an upload. This picks up where it left off in case the upload is being restored.
    */
+  // * Done but need to revisit
   async #runUpload(uploadID: string): Promise<UploadResult<M, B> | undefined> {
+
+    // get current upload from the uppy state based on the uploadID which was passed in #runUpload
+    // this function's purpose is to get the latest current upload object from uppy state
+    // This is important because other parts of Uppy (or plugins) might modify the state of this upload asynchronously
+    // while #runUpload is executing.
     const getCurrentUpload = (): CurrentUpload<M, B> => {
       const { currentUploads } = this.getState()
       return currentUploads[uploadID]
     }
 
+    // get the current upload object
     let currentUpload = getCurrentUpload()
 
+    // Define Processing steps
+
+/*
+**  Uppy's upload process is divided into three main phases:
+  - this.#preProcessors: An array of functions (plugins) that run before the actual upload
+    (e.g., image compression, metadata extraction).
+  - this.#uploaders: An array of functions (uploader plugins like Tus, XHRUpload, AwsS3) that
+  handle the actual file transfer.
+  - this.#postProcessors: An array of functions (plugins) that run after the upload is complete
+  (e.g., server-side processing notifications, cleanup).
+*/
+// the `steps` array concatenates all registered functions from these three phases
+// into a single ordered list
     const steps = [
       ...this.#preProcessors,
       ...this.#uploaders,
       ...this.#postProcessors,
     ]
+
+    /*
+    The loop iterates from current step of the upload (currentUpload.step , defaulting to 0 if not set)
+    through all the defined steps. This allows resuming from a specific step if the upload was previously interrupted.
+    */
+
     try {
       for (let step = currentUpload.step || 0; step < steps.length; step++) {
         if (!currentUpload) {
@@ -2392,6 +2740,10 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
         }
         const fn = steps[step]
 
+        // Before executing the step, Uppy updates it's central state to reflect that
+        // this uploadId is now at the current step. This is crucial for resumability and
+        // for UI to reflect the current step.
+        // update currentUpload step in state.
         this.setState({
           currentUploads: {
             ...this.getState().currentUploads,
@@ -2402,10 +2754,12 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
           },
         })
 
+        // gets the list of file IDs that are associated with this the upload batch
         const { fileIDs } = currentUpload
 
         // TODO give this the `updatedUpload` object as its only parameter maybe?
         // Otherwise when more metadata may be added to the upload this would keep getting more parameters
+        // executing the actual step function
         await fn(fileIDs, uploadID)
 
         // Update currentUpload value in case it was modified asynchronously.
@@ -2416,6 +2770,10 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
       throw err
     }
 
+
+
+    // This block executes only if currentUpload still exists
+    // (i.e., the upload wasn't cancelled or removed due to an error during the steps).
     // Set result data.
     if (currentUpload) {
       // Mark postprocessing step as complete if necessary; this addresses a case where we might get
@@ -2428,6 +2786,14 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
       //
       // So, just in case an upload with postprocessing plugins *has* completed *without* emitting
       // postprocessing completion, we do it instead.
+
+
+//! Prakash's Comments
+
+// Sometimes, post-processing plugins might not emit progress or completion events if they don't do significant work.
+// To prevent the UI from getting stuck in a "post-processing" state, Uppy manually emits 'postprocess-complete' for any file
+// in the batch that still has a progress.postprocess state.
+
       currentUpload.fileIDs.forEach((fileID) => {
         const file = this.getFile(fileID)
         if (file && file.progress.postprocess) {
@@ -2435,9 +2801,18 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
         }
       })
 
+      //  Retrieves the full file objects for the current upload (just to referesh -- current upload is the uploadObject
+      // based on the uploadId provided in #runUpload method).
       const files = currentUpload.fileIDs.map((fileID) => this.getFile(fileID))
+
+      // Filter out files that don't have error
       const successful = files.filter((file) => !file.error)
+
+      // Filter out files that have error
       const failed = files.filter((file) => file.error)
+
+      // The lists of successful and failed files, along with the uploadId, are
+      // added to the result field of this currentUpload object in uppy state.
       this.addResultData(uploadID, { successful, failed, uploadID })
 
       // Update currentUpload value in case it was modified asynchronously.
@@ -2448,10 +2823,18 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
     // always refers to the latest state. In the handler right above it refers
     // to an outdated object without the `.result` property.
     let result
+
+    // The upload batch, having completed its lifecycle, is now removed from the currentUploads
+    // in the state. This signifies that this particular upload operation is finished.
     if (currentUpload) {
       result = currentUpload.result
       this.#removeUpload(uploadID)
     }
+    // If result is Still Null (Upload Removed Concurrently):
+    // if (result == null): This condition handles cases where currentUpload might
+    // have been removed from the state by another process after the main loop but before
+    // this final block, or if it was removed due to an error and the catch block was somehow
+    // bypassed (less likely).
     if (result == null) {
       this.log(
         `Not setting result for an upload that has been removed: ${uploadID}`,
@@ -2469,31 +2852,51 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
    * Start an upload for all the files that are not currently being uploaded.
    */
   async upload(): Promise<NonNullable<UploadResult<M, B>> | undefined> {
+    // it checks if any plugins of type 'uploader' example XHR , TUS are registered. with uppy
+    // if no uploader plugins are found it logs a warning message , upload might still proceed
+    // through pre / post processors but won't transfer files.
     if (!this.#plugins['uploader']?.length) {
       this.log('No uploader type plugins are used', 'warning')
     }
 
+// It retrieves the current map of all files ({ [fileID]: UppyFile }) from Uppy's state.
+// This files variable might be updated later by the onBeforeUpload hook.
     let { files } = this.getState()
 
     // retry any failed files from a previous upload() call
     const filesToRetry = this.#getFilesToRetry()
     if (filesToRetry.length > 0) {
+      // #doRetryAll resets the error and pause status for these files, emits a 'retry-all' event
+      // creates a new upload batch for them, and runs it using #runUpload.
       const retryResult = await this.#doRetryAll() // we don't want the complete event to fire
-
+      // It then checks if there are any other files in Uppy that haven't started uploading yet
+      // (i.e., new files added since the last attempt or files that were never part of the failed batch).
       const hasNewFiles =
         this.getFiles().filter((file) => file.progress.uploadStarted == null)
           .length > 0
 
       // if no new files, make it idempotent and return
       if (!hasNewFiles) {
+        // ! this emits a `complete` event with the retryResult
         this.emit('complete', retryResult!)
         return retryResult
       }
-      // reload files which might have  changed after retry
+      // If there are new files in addition to the retried ones,
+      // it reloads the files map from the state, as the retry process might have altered file states.
       ;({ files } = this.getState())
     }
 
     // If no files to retry, proceed with original upload() behavior for new files
+
+    /*
+this.opts.onBeforeUpload(files): It calls the user-configurable onBeforeUpload
+callback ([packages/@uppy/core/src/Uppy.ts:237-240][packages/@uppy/core/src/Uppy.ts]Uppy.ts ) )),
+passing the current map of files. This hook allows the user to:
+- Prevent the upload entirely by returning false.
+- Modify the files (e.g., add/remove files, change metadata) by returning an updated files map.
+- Do nothing and let the upload proceed by returning true or undefined (or the original files map).
+    */
+
     const onBeforeUploadResult = this.opts.onBeforeUpload(files)
 
     if (onBeforeUploadResult === false) {
@@ -2504,7 +2907,10 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
       )
     }
 
+    // If the hook returns a file map (an object), it means the user wants to use this modified set of files.
     if (onBeforeUploadResult && typeof onBeforeUploadResult === 'object') {
+
+      // The local files variable is updated.
       files = onBeforeUploadResult
       // Updating files in state, because uploader plugins receive file IDs,
       // and then fetch the actual file object from state
@@ -2513,9 +2919,12 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
       })
     }
 
+    // Promise Chain for Validations and Upload Execution: The rest
+    // of the method is a promise chain (.then().catch().then()...).
     return Promise.resolve()
       .then(() => this.#restricter.validateMinNumberOfFiles(files))
       .catch((err) => {
+        // ! this.informAndEmit([err]) emits `restriction-failed` or `error` event based on error.isRestriction
         this.#informAndEmit([err])
         throw err
       })
@@ -2531,16 +2940,22 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
         throw err
       })
       .then(async () => {
+        // Gets the map of currently active upload batches.
         const { currentUploads } = this.getState()
+
         // get a list of files that are currently assigned to uploads
+        // Creates a flat array of all file IDs that are already part of any ongoing upload batch.
         const currentlyUploadingFiles = Object.values(currentUploads).flatMap(
           (curr) => curr.fileIDs,
         )
 
+        // Initializes an array to hold IDs of files that should be included in this new upload batch.
         const waitingFileIDs: string[] = []
+        //  Iterates through all files selected for upload (after onBeforeUpload and retries).
         Object.keys(files).forEach((fileID) => {
           const file = this.getFile(fileID)
           // if the file hasn't started uploading and hasn't already been assigned to an upload..
+          // add them to the waitingFileIDs array. which would be used to create a new upload batch.
           if (
             !file.progress.uploadStarted &&
             currentlyUploadingFiles.indexOf(fileID) === -1
@@ -2549,8 +2964,18 @@ this user-facing error (e.g., as a toast notification via the Informer plugin).
           }
         })
 
+
+        // calling #createUpload(waitingFileIDs)
+        // generates a unique ID for this new batch, emits an 'upload' event and updates Uppy's state
+        // to include this new batch in currentUploads.
         const uploadID = this.#createUpload(waitingFileIDs)
+
+        // #runUpload is the core engine that executes the pre-processing, uploading (via uploader plugins),
+        // and post-processing steps for all files in the batch. It handles resumability and updates state throughout
+        // the process. It returns an UploadResult.
         const result = await this.#runUpload(uploadID)
+
+        // The ! asserts that result will not be null/undefined here.
         this.emit('complete', result!)
         return result
       })
