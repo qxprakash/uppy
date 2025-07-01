@@ -548,6 +548,7 @@ export default class Webcam<M extends Meta, B extends Body> extends UIPlugin<
 
     this.setPluginState({
       recordedVideo: null,
+      capturedSnapshot: null,
       isRecording: false,
       recordingLengthSeconds: 0,
     })

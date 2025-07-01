@@ -939,6 +939,7 @@ export default class Dashboard<M extends Meta, B extends Body> extends UIPlugin<
   }
 
   private handleComplete = ({ failed }: UploadResult<M, B>) => {
+    console.log("handle complete --------->")
     if (this.opts.closeAfterFinish && !failed?.length) {
       // All uploads are done
       this.requestCloseModal()
