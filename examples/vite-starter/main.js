@@ -6,6 +6,7 @@ import '@uppy/core/dist/style.css';
 import '@uppy/dashboard/dist/style.css';
 import '@uppy/webcam/dist/style.css';
 import Tus from '@uppy/tus';
+import ScreenCapture from '@uppy/screen-capture';
 
 const TUS_ENDPOINT = 'https://tusd.tusdemo.net/files/';
 
@@ -42,6 +43,22 @@ uppyDashboard.use(Webcam, {
     }
   }
 });
+
+uppyDashboard.use(ScreenCapture, {
+  target: Dashboard,
+  mirror: true,
+  showRecordingLength: true,
+  modes: ['video-audio', 'picture'],
+  preferredVideoMimeType: 'video/webm',
+  preferredImageMimeType: 'image/jpeg',
+  facingMode: 'user',
+  countdown: true,
+  locale: {
+    strings: {
+      smile: 'Smile!'
+    }
+  }
+})
 
 uppyDashboard.use(Tus, { endpoint: TUS_ENDPOINT, limit: 6 });
 

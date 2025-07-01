@@ -11792,7 +11792,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@uppy/compressor@workspace:^, @uppy/compressor@workspace:packages/@uppy/compressor":
+"@uppy/compressor@workspace:*, @uppy/compressor@workspace:^, @uppy/compressor@workspace:packages/@uppy/compressor":
   version: 0.0.0-use.local
   resolution: "@uppy/compressor@workspace:packages/@uppy/compressor"
   dependencies:
@@ -33096,6 +33096,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"vite-starter@workspace:examples/vite-starter":
+  version: 0.0.0-use.local
+  resolution: "vite-starter@workspace:examples/vite-starter"
+  dependencies:
+    "@uppy/aws-s3": "workspace:*"
+    "@uppy/compressor": "workspace:*"
+    "@uppy/core": "workspace:*"
+    "@uppy/dashboard": "workspace:*"
+    "@uppy/drop-target": "workspace:*"
+    "@uppy/form": "workspace:*"
+    "@uppy/golden-retriever": "workspace:*"
+    "@uppy/image-editor": "workspace:*"
+    "@uppy/remote-sources": "workspace:*"
+    "@uppy/screen-capture": "workspace:*"
+    "@uppy/transloadit": "workspace:*"
+    "@uppy/tus": "workspace:*"
+    "@uppy/webcam": "workspace:*"
+    "@uppy/xhr-upload": "workspace:*"
+    vite: "npm:^5.2.7"
+  languageName: unknown
+  linkType: soft
+
 "vite@npm:5.2.11":
   version: 5.2.11
   resolution: "vite@npm:5.2.11"
@@ -33228,6 +33250,49 @@ __metadata:
   bin:
     vite: bin/vite.js
   checksum: 10/95b2f94d378305cf8a4fadb40f96da3e59593188733738c486252ecb67ac6439100a44ec9170b66fa319b4d61eea161800e610a0499e61bf110ae6e7e6f233f0
+  languageName: node
+  linkType: hard
+
+"vite@npm:^5.2.7":
+  version: 5.4.19
+  resolution: "vite@npm:5.4.19"
+  dependencies:
+    esbuild: "npm:^0.21.3"
+    fsevents: "npm:~2.3.3"
+    postcss: "npm:^8.4.43"
+    rollup: "npm:^4.20.0"
+  peerDependencies:
+    "@types/node": ^18.0.0 || >=20.0.0
+    less: "*"
+    lightningcss: ^1.21.0
+    sass: "*"
+    sass-embedded: "*"
+    stylus: "*"
+    sugarss: "*"
+    terser: ^5.4.0
+  dependenciesMeta:
+    fsevents:
+      optional: true
+  peerDependenciesMeta:
+    "@types/node":
+      optional: true
+    less:
+      optional: true
+    lightningcss:
+      optional: true
+    sass:
+      optional: true
+    sass-embedded:
+      optional: true
+    stylus:
+      optional: true
+    sugarss:
+      optional: true
+    terser:
+      optional: true
+  bin:
+    vite: bin/vite.js
+  checksum: 10/27900c87ec6f84967ba12bd4a24c2b9182c3ddad278a13a1c7736ccc4ac7e325f3fbdc11836e2906857140cc89c55121cb0746d4100046e797e21e1e7570d9c4
   languageName: node
   linkType: hard
 

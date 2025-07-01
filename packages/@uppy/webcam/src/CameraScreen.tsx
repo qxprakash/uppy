@@ -22,6 +22,7 @@ interface CameraScreenProps extends VideoSourceSelectProps {
   src: MediaStream | null
   recording: boolean
   recordedVideo: string | null
+  capturedSnapshot: string | null
   modes: string[]
   supportsRecording: boolean
   showVideoSourceDropdown: boolean
@@ -56,6 +57,7 @@ class CameraScreen extends Component<CameraScreenProps> {
       src,
       recordedVideo,
       recording,
+      capturedSnapshot,
       modes,
       supportsRecording,
       videoSources,
@@ -72,16 +74,18 @@ class CameraScreen extends Component<CameraScreenProps> {
     } = this.props
 
     const hasRecordedVideo = !!recordedVideo
+    const hasCapturedSnapshot = !!capturedSnapshot
+    const hasRecordedMedia = hasRecordedVideo || hasCapturedSnapshot
     const shouldShowRecordButton =
-      !hasRecordedVideo &&
+      !hasRecordedMedia &&
       supportsRecording &&
       (isModeAvailable(modes, 'video-only') ||
         isModeAvailable(modes, 'audio-only') ||
         isModeAvailable(modes, 'video-audio'))
     const shouldShowSnapshotButton =
-      !hasRecordedVideo && isModeAvailable(modes, 'picture')
+      !hasRecordedMedia && isModeAvailable(modes, 'picture')
     const shouldShowRecordingLength =
-      supportsRecording && showRecordingLength && !hasRecordedVideo
+      supportsRecording && showRecordingLength && !hasRecordedMedia
     const shouldShowVideoSourceDropdown =
       showVideoSourceDropdown && videoSources && videoSources.length > 1
 
@@ -108,15 +112,26 @@ class CameraScreen extends Component<CameraScreenProps> {
     return (
       <div className="uppy uppy-Webcam-container">
         <div className="uppy-Webcam-videoContainer">
-          <video
-            /* eslint-disable-next-line no-return-assign */
-            ref={(videoElement) => (this.videoElement = videoElement!)}
-            className={`uppy-Webcam-video  ${
-              mirror ? 'uppy-Webcam-video--mirrored' : ''
-            }`}
-            /* eslint-disable-next-line react/jsx-props-no-spreading */
-            {...videoProps}
-          />
+          {
+            capturedSnapshot && !recording && !recordedVideo ?
+              <div className="uppy-Webcam-imageContainer">
+                <img
+                  src={capturedSnapshot}
+                  className="uppy-Webcam-video"
+                  alt="capturedSnapshot"
+                />
+              </div>
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+            : <video
+                /* eslint-disable-next-line no-return-assign */
+                ref={(videoElement) => (this.videoElement = videoElement!)}
+                className={`uppy-Webcam-video  ${
+                  mirror ? 'uppy-Webcam-video--mirrored' : ''
+                }`}
+                /* eslint-disable-next-line react/jsx-props-no-spreading */
+                {...videoProps}
+              />
+          }
         </div>
         <div className="uppy-Webcam-footer">
           <div className="uppy-Webcam-videoSourceContainer">
@@ -138,11 +153,11 @@ class CameraScreen extends Component<CameraScreenProps> {
               />
             )}
 
-            {hasRecordedVideo && (
+            {(hasRecordedVideo || hasCapturedSnapshot) && (
               <SubmitButton onSubmit={onSubmit} i18n={i18n} />
             )}
 
-            {hasRecordedVideo && (
+            {(hasRecordedVideo || hasCapturedSnapshot) && (
               <DiscardButton onDiscard={onDiscardRecordedVideo} i18n={i18n} />
             )}
           </div>
