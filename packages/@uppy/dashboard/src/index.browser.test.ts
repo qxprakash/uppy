@@ -2,7 +2,6 @@ import Uppy from '@uppy/core'
 import { page, userEvent } from '@vitest/browser/context'
 import { expect, test, vi } from 'vitest'
 import Dashboard from './Dashboard.js'
-import Tus from '@uppy/tus'
 import '@uppy/core/dist/style.css';
 import '@uppy/dashboard/dist/style.css';
 
@@ -20,21 +19,128 @@ function render(html: string) {
 test('Upload, pause, and resume functionality', async () => {
   render('<div id="uppy"></div>')
 
-  const TUS_ENDPOINT = 'https://tusd.tusdemo.net/files/'
+  let uploadResolve: (() => void) | null = null
+  let uploadPromise = new Promise<void>((resolve) => {
+    uploadResolve = resolve
+  })
 
-  const uppy = new Uppy().use(Dashboard, {
+  let isPaused = false
+  let progress = 0
+
+  const uppy = new Uppy({
+    // Enable resumable uploads capability for pause/resume functionality
+    restrictions: { maxNumberOfFiles: 1 }
+  }).use(Dashboard, {
     target: '#uppy',
     inline: true,
   })
-  uppy.use(Tus, {
-    endpoint: TUS_ENDPOINT,
+
+  // Add MockUploader following the pattern from Uppy.test.ts
+  uppy.addUploader(async (fileIDs) => {
+    const files = fileIDs.map(id => uppy.getFile(id))
+
+    // Emit upload-start event
+    uppy.emit('upload-start', files)
+
+    // Set initial progress state for all files
+    fileIDs.forEach(fileID => {
+      const file = uppy.getFile(fileID)
+      if (file) {
+        uppy.setFileState(fileID, {
+          progress: {
+            ...file.progress,
+            uploadStarted: null,
+            uploadComplete: false,
+            percentage: 0,
+            bytesUploaded: false,
+            bytesTotal: file.size,
+          }
+        })
+      }
+    })
+
+    // Simulate upload progress with pause/resume support
+    const progressInterval = setInterval(() => {
+      fileIDs.forEach(fileID => {
+        const file = uppy.getFile(fileID)
+        if (!file) {
+          clearInterval(progressInterval)
+          return
+        }
+
+        // Check if file is paused
+        if (file.isPaused) {
+          isPaused = true
+          return
+        } else if (isPaused) {
+          // Resuming from pause
+          isPaused = false
+        }
+
+        // Only progress if not paused
+        if (!isPaused && progress < 100) {
+          progress += 10 // 10% increments for controlled testing
+
+          // Set uploadStarted on first progress update
+          const uploadStarted = file.progress.uploadStarted || Date.now()
+
+          uppy.setFileState(fileID, {
+            progress: {
+              ...file.progress,
+              uploadStarted,
+              uploadComplete: false,
+              percentage: progress,
+              bytesUploaded: (progress / 100) * (file.size || 0),
+              bytesTotal: file.size || 0,
+            }
+          })
+
+          // Emit upload-progress event
+          uppy.emit('upload-progress', file, {
+            uploadStarted,
+            bytesUploaded: (progress / 100) * (file.size || 0),
+            bytesTotal: file.size || 0,
+          })
+
+          if (progress >= 100) {
+            clearInterval(progressInterval)
+
+            // Set final progress state
+            uppy.setFileState(fileID, {
+              progress: {
+                ...file.progress,
+                uploadComplete: true,
+                percentage: 100,
+              }
+            })
+
+            // Emit upload-success event
+            uppy.emit('upload-success', file, {
+              status: 200,
+              uploadURL: `https://example.com/upload/${file.name}`,
+            })
+
+            uploadResolve?.()
+          }
+        }
+      })
+    }, 200) // 200ms intervals for controlled testing
+
+    return uploadPromise
+  })
+
+  // Set resumable uploads capability
+  uppy.setState({
+    capabilities: {
+      ...uppy.getState().capabilities,
+      resumableUploads: true,
+    },
   })
 
   const fileInput = document.getElementsByClassName('uppy-Dashboard-input')[0]
-  // Use a much larger file to ensure upload takes a reasonable amount of time
   await userEvent.upload(
     fileInput,
-    new File(['a'.repeat(500000)], 'test.txt'), // 500KB file for slower upload
+    new File(['a'.repeat(50000)], 'test.txt'), // 50KB file
   )
 
   // Wait for file to be added and upload button to appear
@@ -46,8 +152,8 @@ test('Upload, pause, and resume functionality', async () => {
   // Start the upload
   await page.getByRole('button', { name: 'Upload 1 file' }).click()
 
-  // Give a moment for the upload to start and UI to update
-  await new Promise(resolve => setTimeout(resolve, 1000))
+  // Wait for upload to start
+  await new Promise(resolve => setTimeout(resolve, 300))
 
   // Verify upload has started by checking StatusBar state
   const statusBar = document.querySelector('.uppy-StatusBar')
@@ -58,39 +164,50 @@ test('Upload, pause, and resume functionality', async () => {
   }
 
   // Find and click pause button
-  const pauseButton = document.querySelector('button[title="Pause"]')
+  const pauseButton = document.querySelector('button[title="Pause"]') as HTMLButtonElement
   if (!pauseButton) {
     throw new Error('Pause button not found')
   }
   pauseButton.click()
 
   // Wait a moment for the button to change to resume
-  await new Promise(resolve => setTimeout(resolve, 200))
+  await new Promise(resolve => setTimeout(resolve, 300))
+
+  // Verify upload is paused
+  const pausedStatusBar = document.querySelector('.uppy-StatusBar')
+  const pausedText = document.querySelector('.uppy-StatusBar-statusPrimary')?.textContent
+
+  if (!pausedText?.toLowerCase().includes('paused')) {
+    throw new Error('Upload should show paused state')
+  }
 
   // Find and click resume button
-  const resumeButton = document.querySelector('button[title="Resume"]') || document.querySelector('button[aria-label="Resume"]')
+  const resumeButton = (document.querySelector('button[title="Resume"]') || document.querySelector('button[aria-label="Resume"]')) as HTMLButtonElement
   if (!resumeButton) {
     throw new Error('Resume button not found')
   }
   resumeButton.click()
 
-  // Verify upload is still in progress after pause/resume cycle
+  // Wait for upload to resume and make progress
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  // Verify upload has resumed and is progressing
   const finalStatusBar = document.querySelector('.uppy-StatusBar')
   const finalStatusText = document.querySelector('.uppy-StatusBar-statusPrimary')?.textContent || ''
 
-  // The upload should still be in uploading state (showing progress or "Uploading")
-  const isStillUploading = finalStatusBar?.classList.contains('is-uploading') ||
-                          finalStatusText.includes('Uploading') ||
-                          finalStatusText.match(/\d+%/)
+  // The upload should be back to uploading state (not paused)
+  const isUploading = finalStatusBar?.classList.contains('is-uploading') &&
+                     !finalStatusText.toLowerCase().includes('paused')
 
-  if (!isStillUploading) {
-    throw new Error('Upload should still be in progress after pause/resume cycle')
+  if (!isUploading) {
+    throw new Error('Upload should have resumed and be in uploading state')
   }
 
   // Test passed! We successfully verified:
   // 1. Upload starts and shows uploading state
   // 2. Pause button is available and clickable
-  // 3. Resume button appears after pause and is clickable
-  // 4. Upload continues after resume
+  // 3. Upload shows paused state when paused
+  // 4. Resume button appears after pause and is clickable
+  // 5. Upload resumes and continues after resume
 })
 
