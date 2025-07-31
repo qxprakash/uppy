@@ -9,6 +9,7 @@ interface MockUploaderOptions {
 // eslint-disable-next-line @typescript-eslint/ban-types
 export default class MockUploader extends BasePlugin<MockUploaderOptions, {}, {}> {
   private intervalId?: ReturnType<typeof setInterval>
+  private activeUploads: Map<string, { interval: ReturnType<typeof setInterval>; progress: number }> = new Map()
 
   constructor(uppy: Uppy, opts?: MockUploaderOptions) {
     super(uppy, opts)
@@ -23,33 +24,81 @@ export default class MockUploader extends BasePlugin<MockUploaderOptions, {}, {}
       return
     }
 
-    this.uppy.emit('upload-started', file)
+    // Set initial progress state
+    this.uppy.setFileState(id, {
+      progress: {
+        uploadStarted: Date.now(),
+        uploadComplete: false,
+        percentage: 0,
+        bytesUploaded: 0,
+        bytesTotal: file.size,
+      }
+    })
+
+    // Emit upload-start for all files being uploaded
+    this.uppy.emit('upload-start', [file])
 
     let progress = 0
     const interval = setInterval(() => {
-      if (!this.uppy.getFile(id)) {
+      const currentFile = this.uppy.getFile(id)
+      if (!currentFile) {
         clearInterval(interval)
+        this.activeUploads.delete(id)
         return
       }
+
+      // Check if file is paused
+      if (currentFile.isPaused) {
+        return
+      }
+
       progress += 20
-      this.uppy.emit('upload-progress', file, {
-        uploadStarted: Date.now(),
-        bytesUploaded: (progress / 100) * file.size,
-        bytesTotal: file.size,
+      this.activeUploads.set(id, { interval, progress })
+
+      // Update file progress state
+      this.uppy.setFileState(id, {
+        progress: {
+          uploadStarted: currentFile.progress.uploadStarted || Date.now(),
+          uploadComplete: false,
+          percentage: progress,
+          bytesUploaded: (progress / 100) * (currentFile.size || 0),
+          bytesTotal: currentFile.size || 0,
+        }
       })
+
+      this.uppy.emit('upload-progress', currentFile, {
+        uploadStarted: currentFile.progress.uploadStarted || Date.now(),
+        bytesUploaded: (progress / 100) * (currentFile.size || 0),
+        bytesTotal: currentFile.size || 0,
+      })
+
       if (progress >= 100) {
         clearInterval(interval)
-        if (this.opts.shouldSucceed) {
-          const result: UploadResult<any, any> = {
-            status: 200,
-            uploadURL: `https://example.com/upload/${file.name}`,
+        this.activeUploads.delete(id)
+
+        // Set final progress state
+        this.uppy.setFileState(id, {
+          progress: {
+            uploadStarted: currentFile.progress.uploadStarted || Date.now(),
+            uploadComplete: true,
+            percentage: 100,
+            bytesUploaded: currentFile.size || 0,
+            bytesTotal: currentFile.size || 0,
           }
-          this.uppy.emit('upload-success', file, result)
+        })
+
+        if (this.opts.shouldSucceed) {
+          this.uppy.emit('upload-success', currentFile, {
+            status: 200,
+            uploadURL: `https://example.com/upload/${currentFile.name}`,
+          })
         } else {
-          this.uppy.emit('upload-error', file, new Error('Upload failed'))
+          this.uppy.emit('upload-error', currentFile, new Error('Upload failed'))
         }
       }
     }, 100)
+
+    this.activeUploads.set(id, { interval, progress: 0 })
   }
 
   upload(fileIDs: string[]): Promise<void> {
@@ -59,9 +108,22 @@ export default class MockUploader extends BasePlugin<MockUploaderOptions, {}, {}
 
   install(): void {
     this.uppy.addUploader(this.upload)
+    // Enable resumable uploads capability
+    this.uppy.setState({
+      capabilities: {
+        ...this.uppy.getState().capabilities,
+        resumableUploads: true,
+      },
+    })
   }
 
   uninstall(): void {
+    // Clear all active uploads
+    this.activeUploads.forEach(({ interval }) => {
+      clearInterval(interval)
+    })
+    this.activeUploads.clear()
+
     clearInterval(this.intervalId)
     this.uppy.removeUploader(this.upload)
   }

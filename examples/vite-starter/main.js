@@ -19,11 +19,11 @@ const uppyDashboard = new Uppy({
 }).use(Dashboard, {
   inline: true,
   target: '#app',
-  showProgressDetails: true,
-  proudlyDisplayPoweredByUppy: true,
-  height: 470,
-  width: '100%',
-  theme: 'light'
+  // showProgressDetails: true,
+  // proudlyDisplayPoweredByUppy: true,
+  // height: 470,
+  // width: '100%',
+  // theme: 'light'
 });
 
 // Add Webcam plugin
