@@ -31,14 +31,15 @@ export default function App() {
     resumeUpload,
     cancelUpload,
   } = useUppyUpload({
-    uploadType: 'tus',
-    endpoint: 'https://tusd.tusdemo.net/files/',
+    uploadType: 'xhr',
+    endpoint: 'https://httpbin.org/post',
     autoProceed: false, // More control over uploads
     debug: true,
     maxFileSize: 100 * 1024 * 1024, // 100MB
-    chunkSize: 5 * 1024 * 1024, // 5MB chunks
-    tusOptions: {
-      retryDelays: [0, 1000, 3000, 5000],
+    xhrOptions: {
+      method: 'POST',
+      formData: true,
+      fieldName: 'file',
     },
   });
 

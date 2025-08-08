@@ -1,9 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
+import { Platform } from 'react-native';
 import Uppy from '@uppy/core';
 import Tus from '@uppy/tus';
 import XHRUpload from '@uppy/xhr-upload';
+import * as FileSystem from 'expo-file-system';
 import tusFileReader from '../utils/tusFileReader';
 import { AsyncStorageUrlStorage } from '../utils/asyncStorageUrlStorage';
+import { fileToUploadData } from '../utils/fileToBlob';
 import type { FileData } from '../utils/filePickers';
 
 export interface UploadConfig {
@@ -44,7 +47,7 @@ export const useUppyUpload = (config: UploadConfig) => {
       instance.use(Tus, {
         endpoint: config.endpoint,
         urlStorage: new AsyncStorageUrlStorage(),
-        fileReader: tusFileReader,
+        // fileReader: tusFileReader, // Temporarily disable custom file reader
         chunkSize: config.chunkSize || 10 * 1024 * 1024, // 10MB default
         ...config.tusOptions,
       });
@@ -76,10 +79,12 @@ export const useUppyUpload = (config: UploadConfig) => {
     };
 
     const handleUploadStarted = () => {
+      console.log('Upload started');
       setUploadState((prev) => ({ ...prev, isUploading: true, error: null }));
     };
 
     const handleComplete = (result: any) => {
+      console.log('Upload complete:', result);
       setUploadState((prev) => ({
         ...prev,
         isUploading: false,
@@ -89,6 +94,7 @@ export const useUppyUpload = (config: UploadConfig) => {
     };
 
     const handleError = (error: Error) => {
+      console.error('Upload error:', error);
       setUploadState((prev) => ({
         ...prev,
         isUploading: false,
@@ -96,46 +102,55 @@ export const useUppyUpload = (config: UploadConfig) => {
       }));
     };
 
+    const handleUploadError = (file: any, error: Error) => {
+      console.error('File upload error:', file, error);
+      setUploadState((prev) => ({
+        ...prev,
+        error: `Failed to upload ${file.name}: ${error.message}`,
+      }));
+    };
+
+    const handleUploadProgress = (file: any, progress: any) => {
+      console.log(`Upload progress for ${file.name}:`, progress);
+      updateState();
+    };
+
     // Register event listeners
     uppy.on('file-added', updateState);
     uppy.on('file-removed', updateState);
-    uppy.on('upload-progress', updateState);
+    uppy.on('upload-progress', handleUploadProgress);
     uppy.on('upload', handleUploadStarted);
     uppy.on('complete', handleComplete);
     uppy.on('error', handleError);
+    uppy.on('upload-error', handleUploadError);
 
     return () => {
       // Cleanup event listeners
       uppy.off('file-added', updateState);
       uppy.off('file-removed', updateState);
-      uppy.off('upload-progress', updateState);
+      uppy.off('upload-progress', handleUploadProgress);
       uppy.off('upload', handleUploadStarted);
       uppy.off('complete', handleComplete);
       uppy.off('error', handleError);
+      uppy.off('upload-error', handleUploadError);
     };
   }, [uppy]);
 
   const addFile = useCallback(
     async (fileData: FileData) => {
       try {
-        // Create a unique file ID
-        const fileId = `uppy-${Date.now()}-${Math.random().toString(36).substring(2)}`;
+        console.log('Adding file to Uppy:', fileData);
         
-        uppy.addFile({
-          source: 'React Native',
-          name: fileData.name,
+        // Convert file to proper format for Uppy
+        const uploadData = await fileToUploadData(fileData);
+        
+        // Create File-like object for Uppy
+        const file = new File([uploadData as Blob], fileData.name, {
           type: fileData.mimeType || fileData.type,
-          data: {
-            ...fileData,
-            size: fileData.size || null,
-          }, // Pass the entire fileData object including uri with proper size typing
-          meta: {
-            size: fileData.size || null,
-            type: fileData.type,
-            relativePath: null,
-          },
-          id: fileId,
         });
+        
+        uppy.addFile(file);
+        console.log('File added successfully');
       } catch (error) {
         console.error('Error adding file to Uppy:', error);
         setUploadState((prev) => ({
