@@ -38,14 +38,14 @@ interface FileListItemProps {
 const FileListItem: React.FC<FileListItemProps> = ({ file, onRemove, isCompleted }) => {
   const getFileIcon = (type?: string) => {
     if (!type) return '📄';
-    
+
     if (type.startsWith('image/')) return '🖼️';
     if (type.startsWith('video/')) return '🎥';
     if (type.includes('pdf')) return '📕';
     if (type.includes('doc') || type.includes('word')) return '📘';
     if (type.includes('excel') || type.includes('sheet')) return '📊';
     if (type.includes('text')) return '📝';
-    
+
     return '📄';
   };
 
@@ -76,7 +76,7 @@ const FileListItem: React.FC<FileListItemProps> = ({ file, onRemove, isCompleted
       <View style={styles.fileIcon}>
         <Text style={styles.fileIconText}>{getFileIcon(file.type)}</Text>
       </View>
-      
+
       <View style={styles.fileInfo}>
         <Text style={styles.fileName} numberOfLines={1}>
           {file.name}
@@ -89,7 +89,7 @@ const FileListItem: React.FC<FileListItemProps> = ({ file, onRemove, isCompleted
             {getStatusText()}
           </Text>
         </View>
-        
+
         {file.progress && file.progress.bytesUploaded > 0 && !isCompleted && (
           <View style={styles.progressContainer}>
             <View
@@ -101,7 +101,7 @@ const FileListItem: React.FC<FileListItemProps> = ({ file, onRemove, isCompleted
           </View>
         )}
       </View>
-      
+
       <TouchableOpacity onPress={onRemove} style={styles.removeButton}>
         <Text style={styles.removeButtonText}>✕</Text>
       </TouchableOpacity>

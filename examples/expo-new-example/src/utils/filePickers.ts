@@ -27,13 +27,18 @@ export interface CameraOptions {
  */
 export const selectImage = async (options: ImagePickerOptions = {}): Promise<FileData[]> => {
   try {
+    // Request media library permissions first
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      throw new Error('Media library permission denied. Please grant permission to access photos.');
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
       allowsEditing: options.allowsEditing || false,
       aspect: options.aspect || [4, 3],
       quality: options.quality || 1,
       allowsMultipleSelection: options.allowsMultipleSelection || false,
-      ...options,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -126,7 +131,7 @@ const getFileExtension = (uri: string): string => {
  */
 export const formatFileSize = (bytes?: number): string => {
   if (!bytes) return 'Unknown size';
-  
+
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
@@ -138,7 +143,7 @@ export const formatFileSize = (bytes?: number): string => {
 export const isSupportedFileType = (mimeType: string): boolean => {
   const supportedTypes = [
     'image/jpeg',
-    'image/jpg', 
+    'image/jpg',
     'image/png',
     'image/gif',
     'image/webp',
@@ -149,6 +154,6 @@ export const isSupportedFileType = (mimeType: string): boolean => {
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ];
-  
+
   return supportedTypes.includes(mimeType);
 };

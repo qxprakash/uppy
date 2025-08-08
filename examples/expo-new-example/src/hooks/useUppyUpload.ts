@@ -118,6 +118,9 @@ export const useUppyUpload = (config: UploadConfig) => {
   const addFile = useCallback(
     async (fileData: FileData) => {
       try {
+        // Create a unique file ID
+        const fileId = `uppy-${Date.now()}-${Math.random().toString(36).substring(2)}`;
+        
         uppy.addFile({
           source: 'React Native',
           name: fileData.name,
@@ -125,13 +128,16 @@ export const useUppyUpload = (config: UploadConfig) => {
           data: {
             ...fileData,
             size: fileData.size || null,
-          },
+          }, // Pass the entire fileData object including uri with proper size typing
           meta: {
             size: fileData.size || null,
             type: fileData.type,
+            relativePath: null,
           },
+          id: fileId,
         });
       } catch (error) {
+        console.error('Error adding file to Uppy:', error);
         setUploadState((prev) => ({
           ...prev,
           error: error instanceof Error ? error.message : 'Failed to add file',

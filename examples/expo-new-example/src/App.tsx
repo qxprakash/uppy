@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   Alert,
   SafeAreaView,
 } from 'react-native';
@@ -50,11 +49,11 @@ export default function App() {
         allowsEditing: false,
         allowsMultipleSelection: true,
       });
-      
+
       for (const file of files) {
         await addFile(file);
       }
-      
+
       setShowFilePicker(false);
     } catch (error) {
       console.error('Error selecting image:', error);
@@ -65,11 +64,11 @@ export default function App() {
   const handleSelectDocument = async () => {
     try {
       const files = await selectDocument();
-      
+
       for (const file of files) {
         await addFile(file);
       }
-      
+
       setShowFilePicker(false);
     } catch (error) {
       console.error('Error selecting document:', error);
@@ -83,11 +82,11 @@ export default function App() {
         allowsEditing: true,
         quality: 0.8,
       });
-      
+
       if (file) {
         await addFile(file);
       }
-      
+
       setShowFilePicker(false);
     } catch (error) {
       console.error('Error taking picture:', error);
@@ -109,8 +108,8 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="auto" />
-      
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+
+      <View style={styles.content}>
         <Text style={styles.title}>Uppy React Native Example</Text>
         <Text style={styles.subtitle}>
           Unopinionated file upload with TUS support
@@ -154,7 +153,7 @@ export default function App() {
             </Text>
           </View>
         )}
-      </ScrollView>
+      </View>
 
       <FileSelectionSheet
         visible={showFilePicker}
@@ -172,10 +171,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  scrollView: {
-    flex: 1,
-  },
   content: {
+    flex: 1,
     padding: 20,
   },
   title: {
@@ -199,6 +196,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   fileList: {
+    flex: 1,
     minHeight: 200,
   },
   errorContainer: {

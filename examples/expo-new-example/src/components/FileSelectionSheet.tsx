@@ -64,7 +64,7 @@ interface FileOptionProps {
 
 const FileOption: React.FC<FileOptionProps> = ({ title, subtitle, onPress, icon, theme }) => {
   const styles = createStyles(theme);
-  
+
   return (
     <TouchableOpacity style={styles.option} onPress={onPress}>
       <Text style={styles.optionIcon}>{icon}</Text>
@@ -96,7 +96,7 @@ export const FileSelectionSheet: React.FC<FileSelectionSheetProps> = ({
     >
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" />
-        
+
         <View style={styles.header}>
           <Text style={styles.title}>Select File</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>

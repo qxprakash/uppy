@@ -52,7 +52,7 @@ This example demonstrates the recommended approach for React Native file uploads
    ```bash
    yarn workspace expo-new-example start
    ```
-   
+
    Or from the repository root:
    ```bash
    yarn workspace expo-new-example start

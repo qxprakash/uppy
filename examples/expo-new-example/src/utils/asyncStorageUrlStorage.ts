@@ -18,7 +18,7 @@ export class AsyncStorageUrlStorage implements UrlStorage {
       const keys = await AsyncStorage.getAllKeys();
       const uppyKeys = keys.filter(key => key.startsWith(this.namespace));
       const items = await AsyncStorage.multiGet(uppyKeys);
-      
+
       return items
         .map(([, value]) => {
           if (value) {
@@ -41,7 +41,7 @@ export class AsyncStorageUrlStorage implements UrlStorage {
     try {
       const key = `${this.namespace}${fingerprint}`;
       const value = await AsyncStorage.getItem(key);
-      
+
       if (value) {
         try {
           const parsed = JSON.parse(value);
@@ -62,7 +62,7 @@ export class AsyncStorageUrlStorage implements UrlStorage {
       // Find the key by searching through all uploads
       const keys = await AsyncStorage.getAllKeys();
       const uppyKeys = keys.filter(key => key.startsWith(this.namespace));
-      
+
       for (const key of uppyKeys) {
         const value = await AsyncStorage.getItem(key);
         if (value) {

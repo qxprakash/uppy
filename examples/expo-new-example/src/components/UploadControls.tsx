@@ -47,7 +47,7 @@ export const UploadControls: React.FC<UploadControlsProps> = ({
                   <Text style={styles.pauseButtonText}>Pause</Text>
                 </TouchableOpacity>
               )}
-              
+
               {onCancelUpload && (
                 <TouchableOpacity style={styles.cancelButton} onPress={onCancelUpload}>
                   <Text style={styles.cancelButtonText}>Cancel</Text>
