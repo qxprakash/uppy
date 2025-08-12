@@ -18,7 +18,7 @@ import ScreenCapture from './ScreenCapture'
 import Webcam from './Webcam'
 
 import './app.css'
-import '@uppy/react/css/style.css'
+import '@uppy/react/dist/styles.css'
 
 function App() {
   const [uppy] = useState(() =>
