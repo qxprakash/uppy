@@ -1,5 +1,5 @@
 {
-  "installDependencies": true,
+  "installDependencies": false,
   "startCommand": "sed -i -e 's/\"workspace:\\*\"/\"latest\"/g' package.json && npm install && npm run dev",
   "env": {
     "NODE_ENV": "development"
