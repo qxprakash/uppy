@@ -1,6 +1,6 @@
 {
   "installDependencies": false,
-  "startCommand": "node prepare-stackblitz.js && npm install @uppy/drag-drop && npm install && npm run dev",
+  "startCommand": "node prepare-stackblitz.js && npm install @uppy/drag-drop && @uppy/file-input && @uppy/progress-bar && uppy/screen-capture && @uppy/status-bar && @uppy/webcam && npm install && npm run dev",
   "env": {
     "NODE_ENV": "development"
   }
