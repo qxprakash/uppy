@@ -1,6 +1,6 @@
 {
-  "installDependencies": false,
-  "startCommand": "npm install @uppy/core @uppy/react @uppy/remote-sources @uppy/screen-capture @uppy/tus @uppy/webcam && npm run dev",
+  "installDependencies": true,
+  "startCommand": "sed -i -e 's/\"workspace:\\*\"/\"latest\"/g' package.json && npm install && npm run dev",
   "env": {
     "NODE_ENV": "development"
   }
