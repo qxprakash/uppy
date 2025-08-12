@@ -1,0 +1,7 @@
+{
+  "installDependencies": false,
+  "startCommand": "node prepare-stackblitz.js && npm install && npm run dev",
+  "env": {
+    "NODE_ENV": "development"
+  }
+}
