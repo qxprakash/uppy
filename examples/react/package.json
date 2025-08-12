@@ -6,6 +6,7 @@
     "build": "tsc && vite build",
     "test": "vitest run --browser.headless",
     "dev": "vite",
+    "start": "yarn install @uppy/core @uppy/react @uppy/remote-sources @uppy/screen-capture @uppy/tus @uppy/webcam && vite",
     "serve": "vite preview"
   },
   "dependencies": {
