@@ -1,0 +1,7 @@
+{
+  "installDependencies": false,
+  "startCommand": "node prepare-stackblitz.js && npm install @uppy/drag-drop && npm install @uppy/file-input && npm install @uppy/progress-bar && npm install && npm run dev",
+  "env": {
+    "NODE_ENV": "development"
+  }
+}
