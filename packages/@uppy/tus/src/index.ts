@@ -330,8 +330,10 @@ export default class Tus<M extends Meta, B extends Body> extends BasePlugin<
         queuedRequest.done()
 
         if (upload.url) {
-          // @ts-expect-error not typed in tus-js-client
-          const { name } = upload.file
+          // tus.Upload has a private/internal `file` in JS; types may not expose it.
+          // Access safely and log if present.
+          const anyUpload = upload as unknown as { file?: { name?: string } }
+          const name = anyUpload.file?.name ?? 'file'
           this.uppy.log(`Download ${name} from ${upload.url}`)
         }
         if (typeof opts.onSuccess === 'function') {

@@ -66,13 +66,24 @@ async function digest(data: string): ReturnType<SubtleCrypto['digest']> {
 
 async function generateHmacKey(secret: string | Uint8Array | ArrayBuffer) {
   const { subtle } = globalThis.crypto
-  return subtle.importKey(
-    'raw',
-    typeof secret === 'string' ? ec.encode(secret) : secret,
-    algorithm,
-    false,
-    ['sign'],
-  )
+  // TS 5.6+ narrows BufferSource generics; ensure we always pass a concrete ArrayBuffer
+  const toArrayBuffer = (input: string | Uint8Array | ArrayBuffer): ArrayBuffer => {
+    if (typeof input === 'string') return ec.encode(input).buffer
+    if (input instanceof ArrayBuffer) return input
+    if (input instanceof Uint8Array) {
+      const buf = new ArrayBuffer(input.byteLength)
+      new Uint8Array(buf).set(input)
+      return buf
+    }
+    // Fallback for environments/types where the view is not a Uint8Array instance
+    const view = new Uint8Array(input as ArrayBufferLike)
+    const buf = new ArrayBuffer(view.byteLength)
+    new Uint8Array(buf).set(view)
+    return buf
+  }
+
+  const keyData = toArrayBuffer(secret)
+  return subtle.importKey('raw', keyData, algorithm, false, ['sign'])
 }
 
 function arrayBufferToHexString(arrayBuffer: ArrayBuffer) {

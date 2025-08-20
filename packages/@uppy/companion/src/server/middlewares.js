@@ -215,11 +215,22 @@ export const cors =
     })(req, res, next)
   }
 
-export const metrics = ({ path = undefined } = {}) => {
-  const metricsMiddleware = promBundle({
+/**
+ * Prometheus metrics middleware for Companion.
+ *
+ * @param {{ path?: string }} [opts]
+ *   Optional base path to prefix the metrics endpoint with (e.g. '/companion').
+ *   When provided, the metrics endpoint will be `${path}/metrics`.
+ * @returns {import('express').RequestHandler}
+ *   An Express request handler suitable for app.use(...).
+ */
+export const metrics = (opts = {}) => {
+  const { path } = opts
+  /** @type {import('express').RequestHandler & { promClient?: any }} */
+  const metricsMiddleware = /** @type {any} */ (promBundle({
     includeMethod: true,
     metricsPath: path ? `${path}/metrics` : undefined,
-  })
+  }))
   // @ts-ignore Not in the typings, but it does exist
   const { promClient } = metricsMiddleware
   const { collectDefaultMetrics } = promClient

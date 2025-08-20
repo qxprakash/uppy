@@ -41,7 +41,7 @@ export default class AudioOscilloscope {
 
   private bufferLength: number
 
-  private dataArray?: Uint8Array
+  private dataArray?: Uint8Array<ArrayBuffer>
 
   private onDrawFrame: (oscilloscope: AudioOscilloscope) => void
 
@@ -85,8 +85,9 @@ export default class AudioOscilloscope {
     this.analyser.fftSize = 2048
     this.bufferLength = this.analyser.frequencyBinCount
     this.source = this.audioContext.createBufferSource()
-    this.dataArray = new Uint8Array(this.bufferLength)
-    this.analyser.getByteTimeDomainData(this.dataArray)
+  // Use an explicit ArrayBuffer to ensure Uint8Array<ArrayBuffer> for TS/lib.dom compatibility
+  this.dataArray = new Uint8Array(new ArrayBuffer(this.bufferLength))
+  this.analyser.getByteTimeDomainData(this.dataArray)
     this.streamSource.connect(this.analyser)
   }
 
@@ -97,7 +98,7 @@ export default class AudioOscilloscope {
     const h = this.height
 
     if (analyser) {
-      analyser.getByteTimeDomainData(dataArray!)
+  analyser.getByteTimeDomainData(dataArray!)
     }
 
     ctx.fillRect(0, 0, w, h)
