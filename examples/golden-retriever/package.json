@@ -1,0 +1,20 @@
+{
+  "name": "golden-retriever-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.1.2"
+  },
+  "dependencies": {
+    "@uppy/core": "workspace:*",
+    "@uppy/dashboard": "workspace:*",
+    "@uppy/golden-retriever": "workspace:*",
+    "@uppy/tus": "workspace:*"
+  }
+}
