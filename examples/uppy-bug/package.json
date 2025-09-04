@@ -1,0 +1,31 @@
+{
+  "name": "uppy-bug",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k \"node index.js\" \"vite\"",
+    "serve:api": "node index.js",
+    "serve:web": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "vite": "^7.1.2"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.879.0",
+    "@aws-sdk/client-sts": "^3.882.0",
+    "@aws-sdk/s3-presigned-post": "^3.879.0",
+    "@aws-sdk/s3-request-presigner": "^3.879.0",
+    "@uppy/aws-s3": "workspace:*",
+    "@uppy/core": "workspace:*",
+    "@uppy/dashboard": "workspace:*",
+    "@uppy/golden-retriever": "workspace:*",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0"
+  }
+}
