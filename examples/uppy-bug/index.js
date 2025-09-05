@@ -377,44 +377,6 @@ app.get('/withCustomEndpoints.html', (req, res) => {
   res.sendFile(htmlPath)
 })
 
-app.get('/uppy.min.mjs', (req, res) => {
-  res.setHeader('Content-Type', 'text/javascript')
-  const bundlePath = path.join(
-    path.dirname(new URL(import.meta.url).pathname),
-    '../..',
-    'packages/uppy/dist',
-    'uppy.min.mjs',
-  )
-  if (existsSync(bundlePath)) {
-    res.sendFile(bundlePath)
-  } else {
-    console.warn(
-      'No local JS bundle found, using the CDN as a fallback. Run `corepack yarn build` to make this warning disappear.',
-    )
-    res.end(
-      'export * from "https://releases.transloadit.com/uppy/v4.0.0-beta.11/uppy.min.mjs";\n',
-    )
-  }
-})
-app.get('/uppy.min.css', (req, res) => {
-  res.setHeader('Content-Type', 'text/css')
-  const bundlePath = path.join(
-    path.dirname(new URL(import.meta.url).pathname),
-    '../..',
-    'packages/uppy/dist',
-    'uppy.min.css',
-  )
-  if (existsSync(bundlePath)) {
-    res.sendFile(bundlePath)
-  } else {
-    console.warn(
-      'No local CSS bundle found, using the CDN as a fallback. Run `corepack yarn build` to make this warning disappear.',
-    )
-    res.end(
-      '@import "https://releases.transloadit.com/uppy/v4.0.0-beta.11/uppy.min.css";\n',
-    )
-  }
-})
 
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}.`)
