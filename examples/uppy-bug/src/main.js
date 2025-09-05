@@ -103,11 +103,12 @@ const uppy = new Uppy()
       const response = await fetch(`${SERVER_URL}/s3/sign`, {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           accept: 'application/json',
         },
-        body: serialize({
+        body: JSON.stringify({
           filename: file.name,
-          contentType: file.type,
+          type: file.type, // Note: server expects 'type', not 'contentType'
         }),
         signal: options.signal,
       })
@@ -145,11 +146,11 @@ const uppy = new Uppy()
 
       const response = await fetch(`${SERVER_URL}/s3/multipart`, {
         method: 'POST',
-        // Send and receive JSON.
         headers: {
+          'Content-Type': 'application/json',
           accept: 'application/json',
         },
-        body: serialize({
+        body: JSON.stringify({
           filename: file.name,
           type: file.type,
           metadata,
@@ -244,9 +245,10 @@ const uppy = new Uppy()
         {
           method: 'POST',
           headers: {
+            'Content-Type': 'application/json',
             accept: 'application/json',
           },
-          body: serialize({ parts }),
+          body: JSON.stringify({ parts }),
           signal,
         },
       )
