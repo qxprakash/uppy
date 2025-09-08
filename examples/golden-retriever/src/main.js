@@ -29,7 +29,13 @@ uppy.use(Tus, {
   endpoint: 'https://tusd.tusdemo.net/files/', // Demo TUS server
 })
 
-uppy.use(GoldenRetriever)
+uppy.use(GoldenRetriever, {
+  serviceWorker: true,
+  indexedDB: {
+    maxFileSize: 200 * 1024 * 1024, // 100 MB instead of default 10 MB
+    maxTotalSize: 1000 * 1024 * 1024, // 1 GB instead of default 300 MB
+  }
+})
 
 // Event listeners
 uppy.on('complete', (result) => {
@@ -88,8 +94,8 @@ uppy.on('upload-error', (file, error, response) => {
   document.querySelector('#app').appendChild(errorDiv)
 })
 
-uppy.on('upload-progress', (file, progress) => {
-  console.log(`Upload progress for ${file.name}: ${progress.bytesUploaded}/${progress.bytesTotal}`)
-})
+// uppy.on('upload-progress', (file, progress) => {
+//   console.log(`Upload progress for ${file.name}: ${progress.bytesUploaded}/${progress.bytesTotal}`)
+// })
 
 console.log('Golden Retriever Uppy instance initialized!')

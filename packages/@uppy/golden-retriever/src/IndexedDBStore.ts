@@ -145,11 +145,13 @@ class IndexedDBStore {
    * List all file blobs currently in the store.
    */
   async list(): Promise<Record<string, IndexedDBStoredFile['data']>> {
+    console.log("golden_retriever IndexedDBStore list")
     const db = await this.#ready
     const transaction = db.transaction([STORE_NAME], 'readonly')
     const store = transaction.objectStore(STORE_NAME)
     const request = store.index('store').getAll(IDBKeyRange.only(this.name))
     const files = await waitForRequest<IndexedDBStoredFile[]>(request)
+    console.log("golden_retriever IndexedDBStore list files ---> ", files)
     return Object.fromEntries(files.map((file) => [file.fileID, file.data]))
   }
 

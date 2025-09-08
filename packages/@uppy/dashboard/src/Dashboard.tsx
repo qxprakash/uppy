@@ -274,7 +274,7 @@ export default class Dashboard<M extends Meta, B extends Body> extends UIPlugin<
     this.id = this.opts.id || 'Dashboard'
     this.title = 'Dashboard'
     this.type = 'orchestrator'
-
+    console.log("hello from dashboard.tsx ---------->")
     this.defaultLocale = locale
 
     // Dynamic default options:

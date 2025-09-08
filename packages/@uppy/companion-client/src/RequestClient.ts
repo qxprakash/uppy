@@ -113,7 +113,10 @@ export default class RequestClient<M extends Meta, B extends Body> {
   }
 
   setCompanionHeaders(headers: Record<string, string>): void {
+    console.log("companion_client RequestClient setCompanionHeaders called")
+    console.log("companion_client RequestClient setCompanionHeaders headers ---> ", headers)
     this.#companionHeaders = headers
+    console.log("companion_client RequestClient setCompanionHeaders logging this.#companionHeaders after setting headers ---> ", this.#companionHeaders)
   }
 
   private [Symbol.for('uppy test: getCompanionHeaders')](): CompanionHeaders {

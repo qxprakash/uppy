@@ -814,9 +814,13 @@ export default class AwsS3Multipart<
   }
 
   #uploadLocalFile(file: UppyFile<M, B>) {
+    console.log("aws_s3 #uploadLocalFile file ---> ", file)
     return new Promise<undefined | string>((resolve, reject) => {
       const onProgress = (bytesUploaded: number, bytesTotal: number) => {
+        console.log("aws_s3 #uploadLocalFile onProgress bytesUploaded ---> ", bytesUploaded)
+        console.log("aws_s3 #uploadLocalFile onProgress bytesTotal ---> ", bytesTotal)
         const latestFile = this.uppy.getFile(file.id)
+        console.log("aws_s3 #uploadLocalFile latestFile ---> ", latestFile)
         this.uppy.emit('upload-progress', latestFile, {
           uploadStarted: latestFile.progress.uploadStarted ?? 0,
           bytesUploaded,
@@ -852,6 +856,7 @@ export default class AwsS3Multipart<
         resolve(undefined)
       }
 
+
       const upload = new MultipartUploader<M, B>(file.data, {
         // .bind to pass the file object to each handler.
         companionComm: this.#companionCommunicationQueue,
@@ -878,8 +883,11 @@ export default class AwsS3Multipart<
         ...(file as MultipartFile<M, B>).s3Multipart,
       })
 
+      console.log("aws_s3 #uploadLocalFile upload ( MultipartUploader instance ) ---> ", upload)
+
       this.uploaders[file.id] = upload
       const eventManager = new EventManager(this.uppy)
+      console.log("aws_s3 #uploadLocalFile eventManager ( EventManager instance ) ---> ", eventManager)
       this.uploaderEvents[file.id] = eventManager
 
       eventManager.onFileRemove(file.id, (removed) => {
@@ -924,18 +932,29 @@ export default class AwsS3Multipart<
   }
 
   #upload = async (fileIDs: string[]) => {
-    if (fileIDs.length === 0) return undefined
+    console.log("aws_s3 #upload fileIDs ---> ", fileIDs)
+    if (fileIDs.length === 0) {
+      console.log("aws_s3 #upload fileIDs.length === 0 returning undefined")
+      return undefined
+    }
 
     const files = this.uppy.getFilesByIds(fileIDs)
+    console.log("aws_s3 #upload files ---> ", files)
     const filesFiltered = filterNonFailedFiles(files)
+    console.log("aws_s3 #upload filesFiltered ---> ", filesFiltered)
     const filesToEmit = filterFilesToEmitUploadStarted(filesFiltered)
+    console.log("aws_s3 #upload filesToEmit ---> ", filesToEmit)
+
 
     this.uppy.emit('upload-start', filesToEmit)
 
     const promises = filesFiltered.map((file) => {
       if (file.isRemote) {
+        console.log("aws_s3 #upload file.isRemote ---> ", file.isRemote)
         const getQueue = () => this.requests
+        console.log("aws_s3 #upload getQueue ---> ", getQueue)
         this.#setResumableUploadsCapability(false)
+        console.log("aws_s3 #upload setResumableUploadsCapability ---> ", false)
         const controller = new AbortController()
 
         const removedHandler = (removedFile: UppyFile<M, B>) => {
@@ -971,6 +990,8 @@ export default class AwsS3Multipart<
   }
 
   #setCompanionHeaders = () => {
+    console.log("aws_s3 #setCompanionHeaders called")
+    console.log("aws_s3 #setCompanionHeaders this.opts.headers ---> ", this.opts.headers)
     this.#client?.setCompanionHeaders(this.opts.headers!)
   }
 

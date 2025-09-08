@@ -418,7 +418,7 @@ export class Uppy<
    */
   constructor(opts?: UppyOptionsWithOptionalRestrictions<M, B>) {
     this.defaultLocale = locale
-
+    console.log("hello from uppy.ts ---------->")
     const defaultOptions: UppyOptions<Record<string, unknown>, B> = {
       id: 'uppy',
       autoProceed: false,
@@ -1356,6 +1356,7 @@ export class Uppy<
   }
 
   resumeAll(): void {
+    console.log("uppy.ts resumeAll")
     const updatedFiles = { ...this.getState().files }
     const inProgressUpdatedFiles = Object.keys(updatedFiles).filter((file) => {
       return (
@@ -1364,7 +1365,10 @@ export class Uppy<
       )
     })
 
+    console.log("uppy.ts resumeAll inProgressUpdatedFiles ---> ", inProgressUpdatedFiles)
+
     inProgressUpdatedFiles.forEach((file) => {
+      console.log("uppy.ts resumeAll file ---> ", file)
       const updatedFile = {
         ...updatedFiles[file],
         isPaused: false,
@@ -1668,6 +1672,7 @@ export class Uppy<
     })
 
     const onUploadStarted = (files: UppyFile<M, B>[]): void => {
+      console.log("uppy.ts onUploadStarted files ---> ", files)
       const filesFiltered = files.filter((file) => {
         const exists = file != null && this.getFile(file.id)
         if (!exists)
@@ -1676,6 +1681,8 @@ export class Uppy<
           )
         return exists
       })
+      console.log("uppy.ts onUploadStarted filesFiltered ---> ", filesFiltered)
+
 
       const filesState = Object.fromEntries(
         filesFiltered.map((file) => [
@@ -1689,7 +1696,9 @@ export class Uppy<
             } as FileProgressStarted,
           },
         ]),
-      )
+        )
+
+      console.log("uppy.ts onUploadStarted filesState ---> ", filesState)
 
       this.patchFilesState(filesState)
     }
@@ -2073,6 +2082,7 @@ export class Uppy<
    * Restore an upload by its ID.
    */
   restore(uploadID: string): Promise<UploadResult<M, B> | undefined> {
+    console.log("uppy.ts restore uploadID ---> ", uploadID)
     this.log(`Core: attempting to restore upload "${uploadID}"`)
 
     if (!this.getState().currentUploads[uploadID]) {
@@ -2169,6 +2179,7 @@ export class Uppy<
    * Run an upload. This picks up where it left off in case the upload is being restored.
    */
   async #runUpload(uploadID: string): Promise<UploadResult<M, B> | undefined> {
+    console.log("uppy.ts #runUpload uploadID ---> ", uploadID)
     const getCurrentUpload = (): CurrentUpload<M, B> => {
       const { currentUploads } = this.getState()
       return currentUploads[uploadID]
@@ -2176,17 +2187,29 @@ export class Uppy<
 
     let currentUpload = getCurrentUpload()
 
+    console.log("uppy.ts #runUpload currentUpload ---> ", currentUpload)
+
+
+    console.log("uppy.ts #runUpload this.#preProcessors ---> ", this.#preProcessors)
+    console.log("uppy.ts #runUpload this.#uploaders ---> ", this.#uploaders)
+    console.log("uppy.ts #runUpload this.#postProcessors ---> ", this.#postProcessors)
+
     const steps = [
       ...this.#preProcessors,
       ...this.#uploaders,
       ...this.#postProcessors,
     ]
+
+      console.log("uppy.ts #runUpload steps ---> ", steps)
+
     try {
       for (let step = currentUpload.step || 0; step < steps.length; step++) {
+        console.log("uppy.ts #runUpload step ---> ", step)
         if (!currentUpload) {
           break
         }
         const fn = steps[step]
+        console.log("uppy.ts #runUpload fn ---> ", fn)
 
         this.setState({
           currentUploads: {
@@ -2200,12 +2223,18 @@ export class Uppy<
 
         const { fileIDs } = currentUpload
 
+        console.log("uppy.ts #runUpload fileIDs ---> ", fileIDs)
+
         // TODO give this the `updatedUpload` object as its only parameter maybe?
         // Otherwise when more metadata may be added to the upload this would keep getting more parameters
         await fn(fileIDs, uploadID)
 
+        console.log(`uppy.ts #runUpload await fn(fileIDs, uploadID) ---> fn(${fileIDs}, ${uploadID})`)
+
         // Update currentUpload value in case it was modified asynchronously.
         currentUpload = getCurrentUpload()
+
+        console.log("uppy.ts #runUpload currentUpload at the end of the loop ---> ", currentUpload)
       }
     } catch (err) {
       this.#removeUpload(uploadID)

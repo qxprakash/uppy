@@ -205,10 +205,12 @@ export default class Tus<M extends Meta, B extends Body> extends BasePlugin<
    *
    */
   #uploadLocalFile(file: UppyFile<M, B>): Promise<tus.Upload | string> {
+    console.log("tus #uploadLocalFile file ---> ", file)
     this.resetUploaderReferences(file.id)
 
     // Create a new tus upload
     return new Promise<tus.Upload | string>((resolve, reject) => {
+      console.log("tus #uploadLocalFile new Promise")
       let queuedRequest: ReturnType<RateLimitedQueue['run']>
       // biome-ignore lint/style/useConst: ...
       let qRequest: () => () => void
@@ -440,12 +442,14 @@ export default class Tus<M extends Meta, B extends Body> extends BasePlugin<
       uploadOptions.metadata = meta
 
       upload = new tus.Upload(file.data, uploadOptions)
+      console.log("tus #uploadLocalFile upload ---> ", upload)
       this.uploaders[file.id] = upload
       const eventManager = new EventManager(this.uppy)
       this.uploaderEvents[file.id] = eventManager
 
       qRequest = () => {
         if (!file.isPaused) {
+          console.log("tus #uploadLocalFile qRequest upload.start")
           upload.start()
         }
         // Don't do anything here, the caller will take care of cancelling the upload itself
@@ -498,6 +502,7 @@ export default class Tus<M extends Meta, B extends Body> extends BasePlugin<
       })
 
       eventManager.onResumeAll(file.id, () => {
+        console.log("tus #uploadLocalFile eventManager.onResumeAll")
         queuedRequest.abort()
         if (file.error) {
           upload.abort()
@@ -550,12 +555,16 @@ export default class Tus<M extends Meta, B extends Body> extends BasePlugin<
   }
 
   async #uploadFiles(files: UppyFile<M, B>[]) {
+    console.log("tus #uploadFiles files ---> ", files)
     const filesFiltered = filterNonFailedFiles(files)
+    console.log("tus #uploadFiles filesFiltered ---> ", filesFiltered)
     const filesToEmit = filterFilesToEmitUploadStarted(filesFiltered)
+    console.log("tus #uploadFiles filesToEmit ---> ", filesToEmit)
     this.uppy.emit('upload-start', filesToEmit)
 
     await Promise.allSettled(
       filesFiltered.map((file) => {
+        console.log("tus #uploadFiles filesFiltered.map file ---> ", file)
         if (file.isRemote) {
           const getQueue = () => this.requests
           const controller = new AbortController()
@@ -588,6 +597,7 @@ export default class Tus<M extends Meta, B extends Body> extends BasePlugin<
   }
 
   #handleUpload = async (fileIDs: string[]) => {
+    console.log("tus handleUpload fileIDs ---> ", fileIDs)
     if (fileIDs.length === 0) {
       this.uppy.log('[Tus] No files to upload')
       return
@@ -602,7 +612,7 @@ export default class Tus<M extends Meta, B extends Body> extends BasePlugin<
 
     this.uppy.log('[Tus] Uploading...')
     const filesToUpload = this.uppy.getFilesByIds(fileIDs)
-
+    console.log("tus handleUpload filesToUpload ---> ", filesToUpload)
     await this.#uploadFiles(filesToUpload)
   }
 

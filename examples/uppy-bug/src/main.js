@@ -6,6 +6,7 @@ import Uppy from "@uppy/core";
 import Dashboard from "@uppy/dashboard";
 import AwsS3 from "@uppy/aws-s3";
 import GoldenRetriever from "@uppy/golden-retriever";
+import { patchGoldenRetriever } from "../golden-retriever-patch.js";
 
 const SERVER_URL = "http://localhost:4000";
 
@@ -62,8 +63,12 @@ function onUploadSuccess(file, data) {
 
 const MiB = 0x10_00_00;
 
-const uppy = new Uppy()
-  .use(Dashboard, {
+const uppy = new Uppy({
+  debug: true,
+  autoProceed: false,
+})
+
+uppy.use(Dashboard, {
     inline: true,
     target: "#uppy",
   })
@@ -262,8 +267,66 @@ const uppy = new Uppy()
     },
   })
   .use(GoldenRetriever, {
-    serviceWorker: false, // Disable service worker for Vite dev mode
+    // serviceWorker: true,
+    indexedDB: {
+      maxFileSize: 200 * 1024 * 1024, // 100 MB instead of default 10 MB
+      maxTotalSize: 1000 * 1024 * 1024, // 1 GB instead of default 300 MB
+    },
   });
 
-uppy.on("complete", onUploadComplete);
+// Apply Firefox compatibility patch
+const goldenRetrieverPlugin = uppy.getPlugin('GoldenRetriever');
+if (goldenRetrieverPlugin) {
+  patchGoldenRetriever(goldenRetrieverPlugin);
+}
+
+// Enhanced debugging
+uppy.on('complete', (result) => {
+  console.log('🔍 COMPLETE EVENT DEBUG:')
+  console.log('- Successful files:', result.successful?.length || 0)
+  console.log('- Failed files:', result.failed?.length || 0)
+  console.log('- localStorage state exists:', !!localStorage.getItem('uppyState:uppy'))
+
+  // Check if this is a premature firing due to aborts
+  const hasAbortedFiles = result.failed?.some(file =>
+    file.error && file.error.toString().includes('Aborted')
+  )
+  console.log('- Has aborted files:', hasAbortedFiles)
+  console.log('- Should preserve state:', hasAbortedFiles && result.successful?.length === 0)
+
+  // Call original handler
+  onUploadComplete(result);
+})
+
+uppy.on('upload-error', (file, error, response) => {
+  console.log('❌ UPLOAD ERROR:', {
+    fileName: file?.name,
+    errorName: error?.name,
+    errorMessage: error?.message,
+    isAbortError: error?.name === 'AbortError' || error?.message?.includes('Aborted')
+  })
+})
+
 uppy.on("upload-success", onUploadSuccess);
+
+// if ('serviceWorker' in navigator) {
+// 	navigator.serviceWorker
+// 		.register('/sw.js') // path to your bundled service worker with GoldenRetriever service worker
+// 		.then((registration) => {
+// 			console.log(
+// 				'ServiceWorker registration successful with scope: ',
+// 				registration.scope,
+// 			);
+
+// 			// Debug: Check if controller is available
+// 			console.log('ServiceWorker controller:', navigator.serviceWorker.controller);
+
+// 			// Listen for controller changes
+// 			navigator.serviceWorker.addEventListener('controllerchange', () => {
+// 				console.log('ServiceWorker controller changed:', navigator.serviceWorker.controller);
+// 			});
+// 		})
+// 		.catch((error) => {
+// 			console.log(`Registration failed with ${error}`);
+// 		});
+// }
