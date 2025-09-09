@@ -6,7 +6,6 @@ import Uppy from "@uppy/core";
 import Dashboard from "@uppy/dashboard";
 import AwsS3 from "@uppy/aws-s3";
 import GoldenRetriever from "@uppy/golden-retriever";
-import { patchGoldenRetriever } from "../golden-retriever-patch.js";
 
 const SERVER_URL = "http://localhost:4000";
 
@@ -264,18 +263,9 @@ uppy.use(Dashboard, {
     },
   })
   .use(GoldenRetriever, {
-    // serviceWorker: true,
-    indexedDB: {
-      maxFileSize: 200 * 1024 * 1024, // 100 MB instead of default 10 MB
-      maxTotalSize: 1000 * 1024 * 1024, // 1 GB instead of default 300 MB
-    },
+    serviceWorker: true
   });
 
-// Apply Firefox compatibility patch
-const goldenRetrieverPlugin = uppy.getPlugin('GoldenRetriever');
-if (goldenRetrieverPlugin) {
-  patchGoldenRetriever(goldenRetrieverPlugin);
-}
 
 // Enhanced debugging
 uppy.on('complete', (result) => {
