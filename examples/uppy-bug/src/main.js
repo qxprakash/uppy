@@ -42,12 +42,8 @@ const app = document.querySelector("#app");
 app.innerHTML = `
   <div style="max-width: 900px;margin: 24px auto;">
     <h2>Uppy AWS S3 + Golden Retriever Repro</h2>
-    <p>
-      1) Add multiple files (5-10). 2) Wait until uploads start. 3) Refresh quickly (especially in Firefox).<br/>
-      Observe that after reload, failed files are not restored due to 'complete' firing.
-    </p>
     <div id="uppy"></div>
-    <pre id="log" style="background:#111;color:#eee;padding:12px;border-radius:6px;white-space:pre-wrap"></pre>
+    <pre id="log" style="background:#fff;color:#eee;padding:12px;border-radius:6px;white-space:pre-wrap"></pre>
   </div>
 `;
 
@@ -220,6 +216,7 @@ uppy.use(Dashboard, {
     },
 
     async listParts(file, { key, uploadId }, signal) {
+      console.log("listParts called ----> with:", { key, uploadId });
       signal?.throwIfAborted()
 
       const filename = encodeURIComponent(key)
@@ -309,24 +306,24 @@ uppy.on('upload-error', (file, error, response) => {
 
 uppy.on("upload-success", onUploadSuccess);
 
-// if ('serviceWorker' in navigator) {
-// 	navigator.serviceWorker
-// 		.register('/sw.js') // path to your bundled service worker with GoldenRetriever service worker
-// 		.then((registration) => {
-// 			console.log(
-// 				'ServiceWorker registration successful with scope: ',
-// 				registration.scope,
-// 			);
+if ('serviceWorker' in navigator) {
+	navigator.serviceWorker
+		.register('/sw.js') // path to your bundled service worker with GoldenRetriever service worker
+		.then((registration) => {
+			console.log(
+				'ServiceWorker registration successful with scope: ',
+				registration.scope,
+			);
 
-// 			// Debug: Check if controller is available
-// 			console.log('ServiceWorker controller:', navigator.serviceWorker.controller);
+			// Debug: Check if controller is available
+			// console.log('ServiceWorker controller:', navigator.serviceWorker.controller);
 
-// 			// Listen for controller changes
-// 			navigator.serviceWorker.addEventListener('controllerchange', () => {
-// 				console.log('ServiceWorker controller changed:', navigator.serviceWorker.controller);
-// 			});
-// 		})
-// 		.catch((error) => {
-// 			console.log(`Registration failed with ${error}`);
-// 		});
-// }
+			// Listen for controller changes
+			navigator.serviceWorker.addEventListener('controllerchange', () => {
+				console.log('ServiceWorker controller changed:', navigator.serviceWorker.controller);
+			});
+		})
+		.catch((error) => {
+			console.log(`Registration failed with ${error}`);
+		});
+}

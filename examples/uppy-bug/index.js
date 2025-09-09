@@ -241,6 +241,7 @@ app.get('/s3/multipart/:uploadId/:partNumber', (req, res, next) => {
 })
 
 app.get('/s3/multipart/:uploadId', (req, res, next) => {
+  console.log("/s3/multipart/:uploadId called ---->", req.params.uploadId);
   const client = getS3Client()
   const { uploadId } = req.params
   const { key } = req.query
