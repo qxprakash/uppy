@@ -7,6 +7,10 @@ export type DropzoneOptions = {
   onDragLeave?: (event: Event) => void
   onDrop?: (files: File[]) => void
   onFileInputChange?: (files: File[]) => void
+  // When provided, this will be used to open the file dialog instead of
+  // falling back to a DOM lookup by id. This enables ref-based triggering
+  // from framework components.
+  openFileDialog?: () => void
 }
 
 export type DropzoneReturn<DragEventType, ChangeEventType> = {
@@ -71,6 +75,10 @@ export function createDropzone<
 
   const handleClick = () => {
     if (options.noClick) return
+    if (options.openFileDialog) {
+      options.openFileDialog()
+      return
+    }
     const input = document.getElementById(fileInputId) as HTMLInputElement
     input?.click()
   }

@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import { useMemo } from 'preact/hooks'
+import { useMemo, useRef } from 'preact/hooks'
 import { createDropzone } from './hooks/dropzone.js'
 import type { NonNullableUppyContext, UppyContext } from './types.js'
 
@@ -14,14 +14,35 @@ export type DropzoneProps = {
 export default function Dropzone(props: DropzoneProps) {
   const { width, height, note, noClick, ctx } = props
 
-  if (!ctx.uppy) {
-    throw new Error('Dropzone must be used within a UppyContextProvider')
-  }
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const { getRootProps, getInputProps } = useMemo(
-    () => createDropzone(ctx as NonNullableUppyContext, { noClick }),
-    [ctx, noClick],
-  )
+  const { getRootProps, getInputProps } = useMemo(() => {
+    // During HMR or first paint, ctx.uppy can be transiently undefined.
+    // Return inert handlers in that case to keep hook order stable and
+    // avoid throwing while context stabilizes.
+    if (!ctx.uppy) {
+      return {
+        getRootProps: () => ({
+          onDragEnter: () => {},
+          onDragOver: () => {},
+          onDragLeave: () => {},
+          onDrop: () => {},
+          onClick: () => {},
+          onKeyPress: () => {},
+        }),
+        getInputProps: () => ({
+          id: 'uppy-dropzone-file-input',
+          type: 'file' as const,
+          multiple: true,
+          onChange: () => {},
+        }),
+      }
+    }
+    return createDropzone(ctx as NonNullableUppyContext, {
+      noClick,
+      openFileDialog: () => inputRef.current?.click(),
+    })
+  }, [ctx, noClick])
 
   return (
     <div
@@ -31,13 +52,15 @@ export default function Dropzone(props: DropzoneProps) {
     >
       <input
         {...getInputProps()}
+        ref={inputRef}
+        id="uppy-dropzone-file-input"
         tabIndex={-1}
         name="uppy-dropzone-file-input"
         className="uppy:hidden"
       />
-      <div
+      <button
+        type="button"
         {...getRootProps()}
-        // biome-ignore lint/a11y/noNoninteractiveTabindex: it is also a button. getRootProps returns keyboard event handlers
         tabIndex={0}
         style={{
           width: width || '100%',
@@ -60,7 +83,7 @@ export default function Dropzone(props: DropzoneProps) {
         {note ? (
           <div className="uppy:text-sm uppy:text-gray-500">{note}</div>
         ) : null}
-      </div>
+      </button>
     </div>
   )
 }
