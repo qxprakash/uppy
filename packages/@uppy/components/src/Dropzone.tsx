@@ -17,27 +17,7 @@ export default function Dropzone(props: DropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { getRootProps, getInputProps } = useMemo(() => {
-    // During HMR or first paint, ctx.uppy can be transiently undefined.
-    // Return inert handlers in that case to keep hook order stable and
-    // avoid throwing while context stabilizes.
-    if (!ctx.uppy) {
-      return {
-        getRootProps: () => ({
-          onDragEnter: () => {},
-          onDragOver: () => {},
-          onDragLeave: () => {},
-          onDrop: () => {},
-          onClick: () => {},
-          onKeyPress: () => {},
-        }),
-        getInputProps: () => ({
-          id: 'uppy-dropzone-file-input',
-          type: 'file' as const,
-          multiple: true,
-          onChange: () => {},
-        }),
-      }
-    }
+
     return createDropzone(ctx as NonNullableUppyContext, {
       noClick,
       openFileDialog: () => inputRef.current?.click(),

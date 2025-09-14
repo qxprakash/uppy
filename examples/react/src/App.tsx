@@ -19,7 +19,7 @@ import '@uppy/react/css/style.css';
 function App() {
   // Create multiple independent Uppy instances
   const [uppy1] = useState(() =>
-    new Uppy({ id: 'uppy1' })
+    new Uppy()
       .use(Tus, {
         endpoint: 'https://tusd.tusdemo.net/files/',
       })
@@ -29,7 +29,7 @@ function App() {
   );
 
   const [uppy2] = useState(() =>
-    new Uppy({ id: 'uppy2' })
+    new Uppy()
       .use(Tus, {
         endpoint: 'https://tusd.tusdemo.net/files/',
       })
@@ -39,7 +39,7 @@ function App() {
   );
 
   const [uppy3] = useState(() =>
-    new Uppy({ id: 'uppy3' })
+    new Uppy()
       .use(Tus, {
         endpoint: 'https://tusd.tusdemo.net/files/',
       })

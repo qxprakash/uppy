@@ -76,9 +76,11 @@ export function createDropzone<
   const handleClick = () => {
     if (options.noClick) return
     if (options.openFileDialog) {
+      // if open file dialog is provided, use it instead of the default DOM lookup
       options.openFileDialog()
       return
     }
+    // otherwise, use the default DOM lookup by id
     const input = document.getElementById(fileInputId) as HTMLInputElement
     input?.click()
   }
