@@ -1,6 +1,6 @@
 {
   "installDependencies": false,
-  "startCommand": "node -e \"const fs=require('fs'); const p='package.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); ['dependencies','devDependencies','peerDependencies'].forEach(k=>{ if(j[k]) for(const n in j[k]) if(typeof j[k][n]==='string' && j[k][n].startsWith('workspace:')) j[k][n]='latest'; }); if(j.devDependencies) { delete j.devDependencies.playwright; delete j.devDependencies['@vitest/browser']; delete j.devDependencies.vitest; delete j.devDependencies['vitest-browser-react']; } fs.writeFileSync(p, JSON.stringify(j,null,2));\" && npm install --prefer-offline --no-audit --no-fund --progress=false --production=false && npm run dev",
+  "startCommand": "time node -e \"const fs=require('fs'); const p='package.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); ['dependencies','devDependencies','peerDependencies'].forEach(k=>{ if(j[k]) for(const n in j[k]) if(typeof j[k][n]==='string' && j[k][n].startsWith('workspace:')) j[k][n]='latest'; }); if(j.devDependencies) { delete j.devDependencies.playwright; delete j.devDependencies['@vitest/browser']; delete j.devDependencies.vitest; delete j.devDependencies['vitest-browser-react']; } fs.writeFileSync(p, JSON.stringify(j,null,2));\" && time npm install --prefer-offline --no-audit --no-fund --progress=false --production=false && npm run dev",
   "env": {
     "NODE_ENV": "development",
     "NPM_CONFIG_PROGRESS": "false",
