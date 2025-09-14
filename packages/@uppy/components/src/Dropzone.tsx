@@ -53,7 +53,6 @@ export default function Dropzone(props: DropzoneProps) {
       <input
         {...getInputProps()}
         ref={inputRef}
-        id="uppy-dropzone-file-input"
         tabIndex={-1}
         name="uppy-dropzone-file-input"
         className="uppy:hidden"
