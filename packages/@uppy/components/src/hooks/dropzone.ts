@@ -29,6 +29,8 @@ export type DropzoneReturn<DragEventType, ChangeEventType> = {
   }
 }
 
+const fileInputId = 'uppy-dropzone-file-input' as const
+
 export function createDropzone<
   DragEventType extends DragEvent,
   ChangeEventType extends Event,
@@ -36,7 +38,7 @@ export function createDropzone<
   ctx: NonNullableUppyContext,
   options: DropzoneOptions = {},
 ): DropzoneReturn<DragEventType, ChangeEventType> {
-  const fileInputId = `uppy-dropzone-file-input-${ctx.uppy.getID()}`
+
   const handleDrop = (event: DragEventType) => {
     event.preventDefault()
     event.stopPropagation()
@@ -80,7 +82,6 @@ export function createDropzone<
       options.openFileDialog()
       return
     }
-    // otherwise, use the default DOM lookup by id
     const input = document.getElementById(fileInputId) as HTMLInputElement
     input?.click()
   }
