@@ -25,6 +25,7 @@ import getBreadcrumbs from '../utils/PartialTreeUtils/getBreadcrumbs.js'
 import getCheckedFilesWithPaths from '../utils/PartialTreeUtils/getCheckedFilesWithPaths.js'
 import getNumberOfSelectedFiles from '../utils/PartialTreeUtils/getNumberOfSelectedFiles.js'
 import PartialTreeUtils from '../utils/PartialTreeUtils/index.js'
+import { materializePath } from '../utils/PartialTreeUtils/pathLoaderCore.js'
 import shouldHandleScroll from '../utils/shouldHandleScroll.js'
 import AuthView from './AuthView.js'
 import Header from './Header.js'
@@ -429,11 +430,12 @@ export default class ProviderView<M extends Meta, B extends Body> {
           return { items, nextPagePath }
         }
 
-        const { partialTree: materializedTree, targetId } = await PartialTreeUtils.ensurePathLoaded(
+        const { partialTree: materializedTree, targetId } = await materializePath(
           partialTree,
           folderId,
           apiList,
           this.validateSingleFile,
+          { includeTargetFirstPage: true },
         )
 
         // Clean search nodes and navigate to the real folder id
@@ -738,11 +740,12 @@ export default class ProviderView<M extends Meta, B extends Body> {
           return { items, nextPagePath }
         }
         // 1) Ensure ancestors and target node exist in real tree
-        const { partialTree: withAncestors, targetId } = await PartialTreeUtils.ensureAncestorsLoaded(
+        const { partialTree: withAncestors, targetId } = await materializePath(
           partialTree,
           rawId,
           apiList,
           this.validateSingleFile,
+          { includeTargetFirstPage: false },
         )
         // 2) Toggle the real node
         const realId = (targetId ?? '').toString()
