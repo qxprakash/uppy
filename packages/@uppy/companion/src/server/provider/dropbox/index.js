@@ -73,31 +73,21 @@ const getOauthClient = () =>
   })
 
 async function list({ client, directory, query }) {
-  const cursor = query?.cursor
-  if (cursor) {
+  if (query.cursor) {
     return client
       .post('files/list_folder/continue', {
-        json: { cursor },
+        json: { cursor: query.cursor },
         responseType: 'json',
       })
       .json()
   }
-
-  // directory may arrive URL-encoded (e.g., "%2Ffoo%2Fbar"). Dropbox expects a plain path.
-  let path = directory || ''
-  try {
-    if (typeof path === 'string' && path.includes('%')) {
-      path = decodeURIComponent(path)
-    }
-  } catch (_) {
-    // ignore decode errors and keep original path
-  }
+  console.log("list called with directory inside list function: ", directory)
 
   return client
     .post('files/list_folder', {
       searchParams: query,
       json: {
-        path,
+        path: `${directory || ''}`,
         include_non_downloadable_files: false,
         // min=1, max=2000 (default: 500): The maximum number of results to return per request.
         limit: 2000,
