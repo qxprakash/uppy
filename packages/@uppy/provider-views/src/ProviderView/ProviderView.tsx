@@ -228,8 +228,6 @@ export default class ProviderView<M extends Meta, B extends Body> {
   async #performSearch(): Promise<void> {
     const { partialTree, currentFolderId, searchString } =
       this.plugin.getPluginState()
-      console.log("current folder id ----> ", currentFolderId)
-      console.log("partial tree ----> ", partialTree)
     const currentFolder = partialTree.find(
       (i) => i.id === currentFolderId,
     ) as PartialTreeFolder
@@ -238,18 +236,10 @@ export default class ProviderView<M extends Meta, B extends Body> {
 
     this.setLoading('Searching...')
     await this.#withAbort(async (signal) => {
-      // Determine base scope path (strip any existing search container suffix)
-      const stripSearchSuffix = (id: PartialTreeId): PartialTreeId => {
-        if (typeof id !== 'string') return id
-        const stripped = id.replace(/\/__search__(?:\/.*)?$/, '')
-        if (stripped === '' || stripped === 'null') return null
-        return stripped as PartialTreeId
-      }
-      const currentId = currentFolder.id
-      const baseContextId = stripSearchSuffix(currentId)
+      // Determine base scope path from current folder
+      const baseContextId = currentFolder.id
       const baseContextNode = (partialTree.find((i) => i.id === baseContextId) || currentFolder) as PartialTreeFolder
       const scopePath = baseContextNode.type === 'root' ? null : baseContextId
-      console.log("scope path inside performSearch ----> ", scopePath)
       const { items, nextPagePath } = await (this.provider as any).search(
         searchString,
         { signal, path: scopePath ?? undefined },
@@ -296,7 +286,6 @@ export default class ProviderView<M extends Meta, B extends Body> {
   }
 
   async openFolder(folderId: string | null): Promise<void> {
-    console.log("open folder called with ----> ", folderId)
     this.lastCheckbox = null
 
     // If trying to open an item inside a search container, materialize its real path
@@ -380,8 +369,6 @@ export default class ProviderView<M extends Meta, B extends Body> {
           }),
         )
       } while (this.opts.loadAllFiles && currentPagePath)
-
-        console.log("current items inside openFolder ----> ", currentItems)
 
       const newPartialTree = PartialTreeUtils.afterOpenFolder(
         partialTree,
@@ -650,12 +637,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
     currentFolderId: PartialTreeId,
     partialTree: PartialTree,
   ): string {
-    const stripSearchSuffix = (id: PartialTreeId): PartialTreeId => {
-      if (typeof id !== 'string') return id
-      const stripped = id.replace(/\/__search__(?:\/.*)?$/, '')
-      return stripped === '' ? null : (stripped as PartialTreeId)
-    }
-    const effectiveId = stripSearchSuffix(currentFolderId)
+    const effectiveId = currentFolderId
     const node = partialTree.find((n) => n.id === effectiveId)
     const lastPathLabel =
       node && node.type !== 'root'
@@ -702,7 +684,6 @@ export default class ProviderView<M extends Meta, B extends Body> {
     const { partialTree, username, searchString, currentFolderId } = this.plugin.getPluginState()
     const breadcrumbs = this.getBreadcrumbs()
     const dynamicPlaceholder = this.#buildSearchPlaceholder(currentFolderId, partialTree)
-    console.log('ProviderView render - partialTree state:', this.plugin.getPluginState().partialTree)
 
     return (
       <div
