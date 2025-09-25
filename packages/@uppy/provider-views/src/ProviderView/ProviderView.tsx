@@ -162,6 +162,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
   }
 
   resetPluginState(): void {
+    this.#clearSearchOverlay()
     this.plugin.setPluginState(getDefaultState(this.plugin.rootFolderId))
   }
 
@@ -228,6 +229,14 @@ export default class ProviderView<M extends Meta, B extends Body> {
   // Identify ephemeral search overlay items by their synthetic id prefix
   #isSearchEphemeralId(id: PartialTreeId | string | null | undefined): boolean {
     return typeof id === 'string' && id.includes('/__search__/')
+  }
+
+  // Clear overlay search state to free memory and avoid stale state
+  #clearSearchOverlay(): void {
+    this.#search.active = false
+    this.#search.results = []
+    this.#search.cursor = null
+    this.#search.scopeId = null
   }
 
   async #performSearch(): Promise<void> {
@@ -416,6 +425,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
           this.plugin.uppy.info(message, 'info', 7000)
         }
 
+        this.#clearSearchOverlay()
         this.plugin.setPluginState({
           ...getDefaultState(this.plugin.rootFolderId),
           authenticated: false,
