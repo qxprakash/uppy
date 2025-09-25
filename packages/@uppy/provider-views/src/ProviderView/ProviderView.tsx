@@ -343,19 +343,12 @@ export default class ProviderView<M extends Meta, B extends Body> {
       (folder) => folder.id === folderId,
     ) as PartialTreeFolder
 
-    // If folder doesn't exist in tree, it might have been cleared during search cleanup
-    if (!clickedFolder) {
-      console.warn(`Folder ${folderId} not found in tree, resetting to root`)
-      this.openFolder(this.plugin.rootFolderId)
-      return
+    // If user is searching and navigates to a real folder, clear search and proceed normally
+    if (this.#isSearchMode()) {
+      this.#clearSearchOverlay()
+      this.plugin.setPluginState({ currentFolderId: folderId, searchString: '' })
     }
 
-    // If user is searching, opening a folder should trigger a scoped search
-    if (this.#isSearchMode()) {
-      this.plugin.setPluginState({ currentFolderId: folderId })
-      await this.#performSearch()
-      return
-    }
     if (clickedFolder.cached) {
       this.plugin.setPluginState({
         currentFolderId: folderId,
