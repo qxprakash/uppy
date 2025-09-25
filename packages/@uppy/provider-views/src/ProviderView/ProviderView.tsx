@@ -225,6 +225,11 @@ export default class ProviderView<M extends Meta, B extends Body> {
     return params.get('cursor')
   }
 
+  // Identify ephemeral search overlay items by their synthetic id prefix
+  #isSearchEphemeralId(id: PartialTreeId | string | null | undefined): boolean {
+    return typeof id === 'string' && id.includes('/__search__/')
+  }
+
   async #performSearch(): Promise<void> {
     const { partialTree, currentFolderId, searchString } =
       this.plugin.getPluginState()
@@ -250,6 +255,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
       this.#search.cursor = this.#extractCursor(nextPagePath)
       this.#search.scopeId = scopePath
       this.plugin.setPluginState({ partialTree: partialTree.slice() })
+
     }).catch(handleError(this.plugin.uppy))
     this.setLoading(false)
   }
@@ -288,8 +294,8 @@ export default class ProviderView<M extends Meta, B extends Body> {
   async openFolder(folderId: string | null): Promise<void> {
     this.lastCheckbox = null
 
-    // If trying to open an item inside a search container, materialize its real path
-    if (folderId?.includes('/__search__/')) {
+    // If trying to open an item inside the search overlay, materialize its real path
+    if (this.#isSearchEphemeralId(folderId)) {
       const { partialTree } = this.plugin.getPluginState()
       this.setLoading(true)
       await this.#withAbort(async (signal) => {
@@ -522,7 +528,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
 
     // Special handling: if toggling an item surfaced from search results,
     // ensure its real ancestors exist and toggle the real node only.
-    if (ourItem.id.includes('/__search__/')) {
+    if (this.#isSearchEphemeralId(ourItem.id)) {
       const rawId = ourItem.id
       this.#withAbort(async (signal) => {
         const apiList = async (directory: PartialTreeId) => {
@@ -557,54 +563,62 @@ export default class ProviderView<M extends Meta, B extends Body> {
     this.lastCheckbox = ourItem.id
   }
 
+  // Map server-side search results to ephemeral items for overlay rendering
+  #mapSearchResultsToEphemeral(
+    partialTree: PartialTree,
+  ): (PartialTreeFile | PartialTreeFolderNode)[] {
+    const baseContextId = this.#search.scopeId
+    const baseScope =
+      baseContextId && typeof baseContextId === 'string'
+        ? decodeURIComponent(baseContextId)
+        : ''
+
+    return this.#search.results.map((file) => {
+      if (file.isFolder) {
+        const node: PartialTreeFolderNode = {
+          type: 'folder',
+          id: `/__search__/${file.requestPath}`,
+          cached: true,
+          nextPagePath: null,
+          status: (partialTree.find((n) => n.id === file.requestPath) as
+            | PartialTreeFolderNode
+            | undefined)?.status || 'unchecked',
+          parentId: '/__search__',
+          data: file,
+        }
+        return node
+      }
+
+      const restrictionError = this.validateSingleFile(file)
+      const fullPath = decodeURIComponent(file.requestPath)
+      const lastSlash = fullPath.lastIndexOf('/')
+      const absDirPath = lastSlash > 0 ? fullPath.slice(0, lastSlash) : '/'
+      let relDirPath: string | undefined
+      if (baseScope && absDirPath.startsWith(baseScope)) {
+        const rel = absDirPath.slice(baseScope.length).replace(/^\//, '')
+        relDirPath = rel === '' ? undefined : rel
+      }
+      const node: PartialTreeFile = {
+        type: 'file',
+        id: `/__search__/${file.requestPath}`,
+        restrictionError,
+        status:
+          (partialTree.find((n) => n.id === file.requestPath) as
+            | PartialTreeFile
+            | undefined)?.status || 'unchecked',
+        parentId: '/__search__',
+        data: { ...file, absDirPath, relDirPath },
+      }
+      return node
+    })
+  }
+
   getDisplayedPartialTree = (): (PartialTreeFile | PartialTreeFolderNode)[] => {
     const { partialTree, currentFolderId, searchString } =
       this.plugin.getPluginState()
-
     // Server-side search overlay: map results to ephemeral items
     if (this.#isSearchMode() && this.#search.active) {
-      const baseContextId = this.#search.scopeId
-      const baseScope =
-        baseContextId && typeof baseContextId === 'string'
-          ? decodeURIComponent(baseContextId)
-          : ''
-      return this.#search.results.map((file) => {
-        if (file.isFolder) {
-          const node: PartialTreeFolderNode = {
-            type: 'folder',
-            id: `/__search__/${file.requestPath}`,
-            cached: true,
-            nextPagePath: null,
-            status: (partialTree.find((n) => n.id === file.requestPath) as
-              | PartialTreeFolderNode
-              | undefined)?.status || 'unchecked',
-            parentId: '/__search__',
-            data: file,
-          }
-          return node
-        }
-        const restrictionError = this.validateSingleFile(file)
-        const fullPath = decodeURIComponent(file.requestPath)
-        const lastSlash = fullPath.lastIndexOf('/')
-        const absDirPath = lastSlash > 0 ? fullPath.slice(0, lastSlash) : '/'
-        let relDirPath: string | undefined
-        if (baseScope && absDirPath.startsWith(baseScope)) {
-          const rel = absDirPath.slice(baseScope.length).replace(/^\//, '')
-          relDirPath = rel === '' ? undefined : rel
-        }
-        const node: PartialTreeFile = {
-          type: 'file',
-          id: `/__search__/${file.requestPath}`,
-          restrictionError,
-          status:
-            (partialTree.find((n) => n.id === file.requestPath) as
-              | PartialTreeFile
-              | undefined)?.status || 'unchecked',
-          parentId: '/__search__',
-          data: { ...file, absDirPath, relDirPath },
-        }
-        return node
-      })
+      return this.#mapSearchResultsToEphemeral(partialTree)
     }
 
     // Default: items under the current folder (client-side filter if any)
