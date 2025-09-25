@@ -211,11 +211,6 @@ export default class ProviderView<M extends Meta, B extends Body> {
     }
   }
 
-  // Remove all temporary search nodes (the container and its children)
-  #removeSearchNodes(tree: PartialTree): PartialTree {
-    return tree.filter((node) => !node.id?.includes('/__search__'))
-  }
-
   #isSearchMode(): boolean {
     const { searchString } = this.plugin.getPluginState()
     const supportsServerSearch = typeof (this.provider as any).search === 'function'
@@ -269,30 +264,6 @@ export default class ProviderView<M extends Meta, B extends Body> {
     this.setLoading(false)
   }
 
-  #resetCurrentFolderListing(): void {
-    const { partialTree, currentFolderId } = this.plugin.getPluginState()
-    const currentFolder = partialTree.find(
-      (i) => i.id === currentFolderId,
-    ) as PartialTreeFolder
-
-    // If current folder doesn't exist, don't try to reset it
-    if (!currentFolder) {
-      console.warn(`Current folder ${currentFolderId} not found, skipping reset`)
-      return
-    }
-
-    // mark folder as not cached and clear its children so openFolder refetches
-    const updatedCurrentFolder: PartialTreeFolder = {
-      ...currentFolder,
-      cached: false,
-      nextPagePath: null,
-    }
-    const baseTree = partialTree
-      .map((node) => (node.id === updatedCurrentFolder.id ? updatedCurrentFolder : node))
-      .filter((node) => node.type === 'root' || node.parentId !== currentFolderId)
-
-    this.plugin.setPluginState({ partialTree: baseTree })
-  }
 
   onSearchInput(s: string): void {
     // Update state immediately for controlled input
