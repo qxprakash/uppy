@@ -449,24 +449,28 @@ export default class ProviderView<M extends Meta, B extends Body> {
       )
     }
 
-    const { partialTree, username, searchString } = this.plugin.getPluginState()
+    const pluginState = this.plugin.getPluginState()
+    const { searchString } = pluginState
 
-    const supportsServerSearch = typeof (this.provider as any).search === 'function'
-    const trimmedSearchString = searchString.trim()
-    if (supportsServerSearch && trimmedSearchString !== '') {
-      return (
-        <GlobalSearchView<M, B>
+    if (
+      typeof (this.provider as any).search === 'function' &&
+      searchString.trim() !== ''
+    ) {
+      const globalSearchView = (
+        <GlobalSearchView
           plugin={this.plugin}
-          openFolder={this.openFolder}
-          handleScroll={this.handleScroll}
           provider={this.provider}
-          onExit={() => {
+          searchString={searchString}
+          exitSearch={() => {
             this.plugin.setPluginState({ searchString: '' })
           }}
+          i18n={i18n}
         />
       )
+      return globalSearchView
     }
 
+    const { partialTree, username } = pluginState
     const breadcrumbs = this.getBreadcrumbs()
 
     return (
