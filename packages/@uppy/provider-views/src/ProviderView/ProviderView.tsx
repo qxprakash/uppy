@@ -28,7 +28,10 @@ import PartialTreeUtils from '../utils/PartialTreeUtils/index.js'
 import shouldHandleScroll from '../utils/shouldHandleScroll.js'
 import AuthView from './AuthView.js'
 import Header from './Header.js'
-import GlobalSearchView from './GlobalSearchView.js'
+import GlobalSearchView, {
+  createDefaultSearchViewState,
+  type SearchViewState,
+} from './GlobalSearchView.js'
 
 export function defaultPickerIcon(): h.JSX.Element {
   return (
@@ -46,7 +49,7 @@ export function defaultPickerIcon(): h.JSX.Element {
 
 const getDefaultState = (
   rootFolderId: string | null,
-): UnknownProviderPluginState => ({
+): ProviderPluginState => ({
   authenticated: undefined, // we don't know yet
   partialTree: [
     {
@@ -61,6 +64,8 @@ const getDefaultState = (
   didFirstRender: false,
   username: null,
   loading: false,
+  searchViewState: createDefaultSearchViewState(),
+  searchViewVersion: 0,
 })
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>
@@ -95,6 +100,11 @@ type RenderOpts<M extends Meta, B extends Body> = Omit<
   'provider'
 >
 
+type ProviderPluginState = UnknownProviderPluginState & {
+  searchViewState: SearchViewState
+  searchViewVersion: number
+}
+
 /**
  * Class to easily generate generic views for Provider plugins
  */
@@ -110,6 +120,8 @@ export default class ProviderView<M extends Meta, B extends Body> {
   isHandlingScroll: boolean = false
 
   lastCheckbox: string | null = null
+
+  #searchView: GlobalSearchView<M, B> | null = null
 
   constructor(plugin: UnknownProviderPlugin<M, B>, opts: PassedOpts<M, B>) {
     this.plugin = plugin
@@ -150,10 +162,38 @@ export default class ProviderView<M extends Meta, B extends Body> {
 
   resetPluginState(): void {
     this.plugin.setPluginState(getDefaultState(this.plugin.rootFolderId))
+    this.#searchView?.reset()
   }
 
   tearDown(): void {
-    // Nothing.
+    this.#searchView?.destroy()
+    this.#searchView = null
+  }
+
+  private getPluginState(): ProviderPluginState {
+    return this.plugin.getPluginState() as ProviderPluginState
+  }
+
+  #ensureSearchView(i18n: I18n): GlobalSearchView<M, B> {
+    if (this.#searchView == null) {
+      this.#searchView = new GlobalSearchView<M, B>({
+        plugin: this.plugin,
+        provider: this.provider,
+        exitSearch: () => {
+          const { searchViewVersion } = this.getPluginState()
+          this.plugin.setPluginState({
+            searchString: '',
+            searchViewState: createDefaultSearchViewState(),
+            searchViewVersion: searchViewVersion + 1,
+          } as Partial<ProviderPluginState>)
+        },
+        i18n,
+      })
+    } else {
+      this.#searchView.updateI18n(i18n)
+    }
+
+    return this.#searchView
   }
 
   setLoading(loading: boolean | string): void {
@@ -161,7 +201,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
   }
 
   cancelSelection(): void {
-    const { partialTree } = this.plugin.getPluginState()
+    const { partialTree } = this.getPluginState()
     const newPartialTree: PartialTree = partialTree.map((item) =>
       item.type === 'root' ? item : { ...item, status: 'unchecked' },
     )
@@ -199,7 +239,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
   async openFolder(folderId: string | null): Promise<void> {
     this.lastCheckbox = null
     // Returning cached folder
-    const { partialTree } = this.plugin.getPluginState()
+    const { partialTree } = this.getPluginState()
     const clickedFolder = partialTree.find(
       (folder) => folder.id === folderId,
     )! as PartialTreeFolder
@@ -294,7 +334,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
   }
 
   async handleScroll(event: Event): Promise<void> {
-    const { partialTree, currentFolderId } = this.plugin.getPluginState()
+    const { partialTree, currentFolderId } = this.getPluginState()
     const currentFolder = partialTree.find(
       (i) => i.id === currentFolderId,
     ) as PartialTreeFolder
@@ -330,7 +370,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
   }
 
   async donePicking(): Promise<void> {
-    const { partialTree } = this.plugin.getPluginState()
+    const { partialTree } = this.getPluginState()
 
     this.setLoading(true)
     await this.#withAbort(async (signal) => {
@@ -368,7 +408,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
     ourItem: PartialTreeFolderNode | PartialTreeFile,
     isShiftKeyPressed: boolean,
   ) {
-    const { partialTree } = this.plugin.getPluginState()
+    const { partialTree } = this.getPluginState()
 
     const clickedRange = getClickedRange(
       ourItem.id,
@@ -387,7 +427,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
 
   getDisplayedPartialTree = (): (PartialTreeFile | PartialTreeFolderNode)[] => {
     const { partialTree, currentFolderId, searchString } =
-      this.plugin.getPluginState()
+      this.getPluginState()
     const inThisFolder = partialTree.filter(
       (item) => item.type !== 'root' && item.parentId === currentFolderId,
     ) as (PartialTreeFile | PartialTreeFolderNode)[]
@@ -405,12 +445,12 @@ export default class ProviderView<M extends Meta, B extends Body> {
   }
 
   getBreadcrumbs = (): PartialTreeFolder[] => {
-    const { partialTree, currentFolderId } = this.plugin.getPluginState()
+    const { partialTree, currentFolderId } = this.getPluginState()
     return getBreadcrumbs(partialTree, currentFolderId)
   }
 
   getSelectedAmount = (): number => {
-    const { partialTree } = this.plugin.getPluginState()
+    const { partialTree } = this.getPluginState()
     return getNumberOfSelectedFiles(partialTree)
   }
 
@@ -423,7 +463,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
   }
 
   render(state: unknown, viewOptions: RenderOpts<M, B> = {}): h.JSX.Element {
-    const { didFirstRender } = this.plugin.getPluginState()
+    const { didFirstRender } = this.getPluginState()
     const { i18n } = this.plugin.uppy
 
     if (!didFirstRender) {
@@ -433,7 +473,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
     }
 
     const opts: Opts<M, B> = { ...this.opts, ...viewOptions }
-    const { authenticated, loading } = this.plugin.getPluginState()
+    const { authenticated, loading } = this.getPluginState()
     const pluginIcon = this.plugin.icon || defaultPickerIcon
 
     if (authenticated === false) {
@@ -449,25 +489,20 @@ export default class ProviderView<M extends Meta, B extends Body> {
       )
     }
 
-    const pluginState = this.plugin.getPluginState()
+    const pluginState = this.getPluginState()
     const { searchString } = pluginState
 
     if (
       typeof (this.provider as any).search === 'function' &&
       searchString.trim() !== ''
     ) {
-      const globalSearchView = (
-        <GlobalSearchView
-          plugin={this.plugin}
-          provider={this.provider}
-          searchString={searchString}
-          exitSearch={() => {
-            this.plugin.setPluginState({ searchString: '' })
-          }}
-          i18n={i18n}
-        />
-      )
-      return globalSearchView
+      const searchView = this.#ensureSearchView(i18n)
+      searchView.syncSearchString(searchString)
+      return searchView.render(searchString)
+    }
+
+    if (this.#searchView) {
+      this.#searchView.syncSearchString(searchString)
     }
 
     const { partialTree, username } = pluginState

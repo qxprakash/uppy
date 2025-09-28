@@ -8,179 +8,112 @@ import type {
   PartialTreeFolderNode,
   PartialTreeId,
   UnknownProviderPlugin,
+  UnknownProviderPluginState,
 } from '@uppy/core'
 import type { h } from 'preact'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import Browser from '../Browser.js'
-import type ProviderView from './ProviderView.js'
 import SearchInput from '../SearchInput.js'
 
-export interface GlobalSearchViewProps<M extends Meta, B extends Body> {
-  provider: UnknownProviderPlugin<M, B>['provider']
-  plugin: UnknownProviderPlugin<M, B>
-  searchString: string
-  exitSearch: () => void
-  i18n: I18n
+type ProviderPluginState = UnknownProviderPluginState & {
+  searchViewState?: SearchViewState
+  searchViewVersion?: number
 }
+
+interface SearchViewState {
+  results: CompanionFile[]
+  checkedItems: Record<string, CompanionFile>
+  isLoading: boolean
+  error: string | null
+  lastQuery: string
+}
+
+const createDefaultSearchViewState = (): SearchViewState => ({
+  results: [],
+  checkedItems: {},
+  isLoading: false,
+  error: null,
+  lastQuery: '',
+})
+
+const isSearchStatePristine = (state: SearchViewState): boolean =>
+  state.results.length === 0 &&
+  Object.keys(state.checkedItems).length === 0 &&
+  state.isLoading === false &&
+  state.error === null &&
+  state.lastQuery === ''
 
 function getItemKey(item: CompanionFile): string {
   return item.requestPath ?? item.id ?? item.name ?? ''
 }
 
-function GlobalSearchView<M extends Meta, B extends Body>({
-  provider,
-  plugin,
-  searchString,
-  exitSearch,
-  i18n,
-}: GlobalSearchViewProps<M, B>): h.JSX.Element {
-  const [results, setResults] = useState<CompanionFile[]>([])
-  const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [checkedItems, setCheckedItems] = useState<Map<string, CompanionFile>>(
-    () => new Map(),
-  )
-  const [error, setError] = useState<string | null>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const searchDebounceIdRef = useRef<number | null>(null)
+interface GlobalSearchViewOptions<M extends Meta, B extends Body> {
+  provider: UnknownProviderPlugin<M, B>['provider']
+  plugin: UnknownProviderPlugin<M, B>
+  exitSearch: () => void
+  i18n: I18n
+}
 
-  const clearDebounce = useCallback(() => {
-    if (searchDebounceIdRef.current != null) {
-      window.clearTimeout(searchDebounceIdRef.current)
-      searchDebounceIdRef.current = null
-    }
-  }, [])
+export default class GlobalSearchView<M extends Meta, B extends Body> {
+  private provider: UnknownProviderPlugin<M, B>['provider']
 
-  const clearResults = useCallback(() => {
-    clearDebounce()
-    abortControllerRef.current?.abort()
-    abortControllerRef.current = null
-    setResults([])
-    setCheckedItems(new Map())
-    setError(null)
-    setIsLoading(false)
-  }, [clearDebounce])
+  private plugin: UnknownProviderPlugin<M, B>
 
-  const performSearch = useCallback(async () => {
-    const latestState = plugin.getPluginState() as {
-      searchString?: string
-      partialTree: PartialTree
-      currentFolderId: PartialTreeId
-    }
+  private exitSearch: () => void
 
-    const query = (latestState.searchString ?? '').trim()
-    if (!query) {
-      clearResults()
-      return
-    }
+  private i18n: I18n
 
-    if (typeof (provider as any).search !== 'function') {
-      setError(i18n('noFilesFound'))
-      setResults([])
-      return
-    }
+  private abortController: AbortController | null = null
 
-    abortControllerRef.current?.abort()
-    const controller = new AbortController()
-    abortControllerRef.current = controller
-    setIsLoading(true)
-    setError(null)
+  private searchDebounceId: number | null = null
 
-    try {
-      const { partialTree, currentFolderId } = latestState
-      const currentFolder = partialTree.find(
-        (i) => i.id === currentFolderId,
-      ) as PartialTreeFolder | undefined
-      const scopePath =
-        currentFolder && currentFolder.type !== 'root'
-          ? (currentFolder.id as PartialTreeId)
-          : null
+  private pendingQuery: string | null = null
 
-      const response = await (provider as any).search(query, {
-        signal: controller.signal,
-        path: scopePath ?? undefined,
-      })
-      const { items } = response ?? {}
-      console.log('search response', { response })
-      setResults(Array.isArray(items) ? items : [])
-    } catch (err: any) {
-      if (err?.name === 'AbortError') return
-      setError(i18n('companionError'))
-      plugin.uppy.log(err, 'warning')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [clearResults, i18n, plugin, provider])
+  constructor(options: GlobalSearchViewOptions<M, B>) {
+    this.provider = options.provider
+    this.plugin = options.plugin
+    this.exitSearch = options.exitSearch
+    this.i18n = options.i18n
+  }
 
-  const scheduleSearch = useCallback(() => {
-    clearDebounce()
-    abortControllerRef.current?.abort()
-    abortControllerRef.current = null
-    searchDebounceIdRef.current = window.setTimeout(() => {
-      void performSearch()
-      searchDebounceIdRef.current = null
-    }, 500)
-  }, [clearDebounce, performSearch])
+  updateI18n(i18n: I18n): void {
+    this.i18n = i18n
+  }
 
-  const handleSearchInput = useCallback(
-    (value: string) => {
-      plugin.setPluginState({ searchString: value })
+  destroy(): void {
+    this.clearDebounce()
+    this.abortController?.abort()
+    this.abortController = null
+    this.pendingQuery = null
+  }
 
-      const trimmed = value.trim()
-      if (trimmed === '') {
-        clearResults()
-      } else {
-        abortControllerRef.current?.abort()
-        abortControllerRef.current = null
-      }
-    },
-    [clearResults, plugin],
-  )
+  reset(): void {
+    this.destroy()
+    this.setState(() => createDefaultSearchViewState())
+  }
 
-  const handleSubmitSearch = useCallback(() => {
-    const { searchString: latest } = plugin.getPluginState() as {
-      searchString?: string
-    }
-
-    const trimmed = (latest ?? '').trim()
+  syncSearchString(searchString: string): void {
+    const trimmed = searchString.trim()
     if (trimmed === '') {
-      clearResults()
-      return
-    }
-
-    clearDebounce()
-    void performSearch()
-  }, [clearDebounce, clearResults, performSearch, plugin])
-
-  const toggleItem = useCallback((item: CompanionFile) => {
-    const key = getItemKey(item)
-    setCheckedItems((prev) => {
-      const next = new Map(prev)
-      if (next.has(key)) {
-        next.delete(key)
+      const currentState = this.getState()
+      if (isSearchStatePristine(currentState)) {
+        this.destroy()
       } else {
-        next.set(key, item)
+        this.reset()
       }
-      return next
-    })
-  }, [])
-
-  useEffect(() => {
-    // Trigger an initial search when the view mounts with a pre-filled query.
-    if (searchString.trim() === '') {
-      clearResults()
       return
     }
 
-    scheduleSearch()
-  }, [clearResults, scheduleSearch, searchString])
+    const state = this.getState()
+    if (trimmed === state.lastQuery || trimmed === this.pendingQuery) {
+      return
+    }
+    this.scheduleSearch(trimmed)
+  }
 
-  const handleExit = useCallback(() => {
-    clearResults()
-    exitSearch()
-  }, [clearResults, exitSearch])
-
-  const renderList = useMemo(() => {
-    const items: (PartialTreeFile | PartialTreeFolderNode)[] = results.map(
+  render(searchString: string): h.JSX.Element {
+    const state = this.getState()
+    const checkedSet = new Set(Object.keys(state.checkedItems))
+    const items: (PartialTreeFile | PartialTreeFolderNode)[] = state.results.map(
       (item) => {
         const key = getItemKey(item)
         if (item.isFolder) {
@@ -190,7 +123,7 @@ function GlobalSearchView<M extends Meta, B extends Body>({
             parentId: null,
             cached: true,
             nextPagePath: null,
-            status: checkedItems.has(key) ? 'checked' : 'unchecked',
+            status: checkedSet.has(key) ? 'checked' : 'unchecked',
             data: item,
           } as PartialTreeFolderNode
         }
@@ -199,67 +132,221 @@ function GlobalSearchView<M extends Meta, B extends Body>({
           type: 'file',
           id: key,
           parentId: null,
-          status: checkedItems.has(key) ? 'checked' : 'unchecked',
+          status: checkedSet.has(key) ? 'checked' : 'unchecked',
           restrictionError: null,
           data: item,
         } as PartialTreeFile
       },
     )
 
-    const handleToggle: ProviderView<M, B>['toggleCheckbox'] = (
-      node,
-      _isShiftKeyPressed,
-    ) => {
-      const match = results.find((res) => getItemKey(res) === node.id)
-      if (match) toggleItem(match)
+    return (
+      <div className="uppy-ProviderBrowser uppy-ProviderBrowser-viewType--list uppy-ProviderBrowser--searchMode">
+        <div className="uppy-ProviderBrowser-searchFilter">
+          <SearchInput
+            searchString={searchString}
+            setSearchString={this.handleSearchInput}
+            submitSearchString={this.handleSubmitSearch}
+            inputLabel={this.i18n('search')}
+            clearSearchLabel={this.i18n('resetSearch')}
+            wrapperClassName="uppy-ProviderBrowser-searchFilter"
+            inputClassName="uppy-ProviderBrowser-searchFilterInput"
+          />
+
+          <button
+            type="button"
+            className="uppy-u-reset uppy-c-btn uppy-ProviderBrowser-searchCancel"
+            onClick={this.handleExit}
+          >
+            {this.i18n('cancel')}
+          </button>
+        </div>
+
+        <Browser<M, B>
+          displayedPartialTree={items}
+          viewType="list"
+          toggleCheckbox={this.handleToggle}
+          handleScroll={this.noopHandleScroll}
+          showTitles
+          i18n={this.i18n}
+          isLoading={state.isLoading}
+          openFolder={this.handleOpenFolder}
+          noResultsLabel={state.error ?? this.i18n('noFilesFound')}
+          virtualList={false}
+          utmSource="Companion"
+        />
+      </div>
+    )
+  }
+
+  private getState(): SearchViewState {
+    const pluginState = this.plugin.getPluginState() as ProviderPluginState
+    if (!pluginState.searchViewState) {
+      const initial = createDefaultSearchViewState()
+      this.plugin.setPluginState({ searchViewState: initial } as Partial<ProviderPluginState>)
+      return initial
+    }
+    return pluginState.searchViewState
+  }
+
+  private setState(updater: (prev: SearchViewState) => SearchViewState): void {
+    const pluginState = this.plugin.getPluginState() as ProviderPluginState
+    const nextState = updater(
+      pluginState.searchViewState ?? createDefaultSearchViewState(),
+    )
+    const nextVersion = (pluginState.searchViewVersion ?? 0) + 1
+    this.plugin.setPluginState({
+      searchViewState: nextState,
+      searchViewVersion: nextVersion,
+    } as Partial<ProviderPluginState>)
+  }
+
+  private scheduleSearch(query: string): void {
+    this.pendingQuery = query
+    this.clearDebounce()
+    this.abortController?.abort()
+    this.abortController = null
+    this.searchDebounceId = window.setTimeout(() => {
+      void this.performSearch(this.pendingQuery ?? undefined)
+      this.searchDebounceId = null
+    }, 500)
+  }
+
+  private clearDebounce(): void {
+    if (this.searchDebounceId != null) {
+      window.clearTimeout(this.searchDebounceId)
+      this.searchDebounceId = null
+    }
+  }
+
+  private performSearch = async (forcedQuery?: string): Promise<void> => {
+    const pluginState = this.plugin.getPluginState() as ProviderPluginState & {
+      partialTree: PartialTree
+      currentFolderId: PartialTreeId
+      searchString?: string
     }
 
-    const noopHandleScroll: ProviderView<M, B>['handleScroll'] = async () => {
+    const query = (forcedQuery ?? pluginState.searchString ?? '').trim()
+    this.pendingQuery = null
+    if (!query) {
+      this.reset()
       return
     }
 
-    const openFolder: ProviderView<M, B>['openFolder'] = async (folderId) => {
-      if (!folderId) return
-      handleExit()
+    if (typeof (this.provider as any).search !== 'function') {
+      this.setState((prev) => ({
+        ...prev,
+        results: [],
+        isLoading: false,
+        error: this.i18n('noFilesFound'),
+        lastQuery: query,
+      }))
+      return
     }
 
-    return {
-      items,
-      handleToggle,
-      openFolder,
-      noopHandleScroll,
+    this.abortController?.abort()
+    const controller = new AbortController()
+    this.abortController = controller
+
+    this.setState((prev) => ({
+      ...prev,
+      isLoading: true,
+      error: null,
+      lastQuery: query,
+    }))
+
+    try {
+      const { partialTree, currentFolderId } = pluginState
+      const currentFolder = partialTree.find(
+        (item) => item.id === currentFolderId,
+      ) as PartialTreeFolder | undefined
+      const scopePath =
+        currentFolder && currentFolder.type !== 'root'
+          ? (currentFolder.id as PartialTreeId)
+          : null
+
+      const response = await (this.provider as any).search(query, {
+        signal: controller.signal,
+        path: scopePath ?? undefined,
+      })
+
+      const { items } = response ?? {}
+      this.setState((prev) => ({
+        ...prev,
+        results: Array.isArray(items) ? items : [],
+        isLoading: false,
+        error: null,
+        lastQuery: query,
+      }))
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return
+      this.plugin.uppy.log(error, 'warning')
+      this.setState((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: this.i18n('companionError'),
+      }))
     }
-  }, [checkedItems, handleExit, results, toggleItem])
+  }
 
-  return (
-    <div className="uppy-ProviderBrowser uppy-ProviderBrowser-viewType--list uppy-ProviderBrowser--searchMode">
-      <div className="uppy-ProviderBrowser-searchFilter">
-        <SearchInput
-          searchString={searchString}
-          setSearchString={handleSearchInput}
-          submitSearchString={handleSubmitSearch}
-          inputLabel={i18n('search')}
-          clearSearchLabel={i18n('resetSearch')}
-          wrapperClassName="uppy-ProviderBrowser-searchFilter"
-          inputClassName="uppy-ProviderBrowser-searchFilterInput"
-        />
-      </div>
+  private handleSearchInput = (value: string): void => {
+    this.plugin.setPluginState({ searchString: value } as Partial<ProviderPluginState>)
+    const trimmed = value.trim()
+    if (trimmed === '') {
+      this.pendingQuery = null
+      this.reset()
+      return
+    }
+    this.scheduleSearch(trimmed)
+  }
 
-      <Browser<M, B>
-        displayedPartialTree={renderList.items}
-        viewType="list"
-        toggleCheckbox={renderList.handleToggle}
-        handleScroll={renderList.noopHandleScroll}
-        showTitles
-        i18n={i18n}
-        isLoading={isLoading}
-        openFolder={renderList.openFolder}
-        noResultsLabel={error ?? i18n('noFilesFound')}
-        virtualList={false}
-        utmSource="Companion"
-      />
-    </div>
-  )
+  private handleSubmitSearch = (): void => {
+    this.clearDebounce()
+    const { searchString } = this.plugin.getPluginState() as ProviderPluginState & {
+      searchString?: string
+    }
+    const trimmed = (searchString ?? '').trim()
+    if (trimmed === '') {
+      this.reset()
+      return
+    }
+    void this.performSearch(trimmed)
+  }
+
+  private handleToggle = (
+    node: PartialTreeFolderNode | PartialTreeFile,
+    _isShiftKeyPressed: boolean,
+  ): void => {
+    const state = this.getState()
+    const nextChecked = { ...state.checkedItems }
+    if (nextChecked[node.id]) {
+      delete nextChecked[node.id]
+    } else {
+      const match = state.results.find((item) => getItemKey(item) === node.id)
+      if (match) nextChecked[node.id] = match
+    }
+
+    this.setState((prev) => ({
+      ...prev,
+      checkedItems: nextChecked,
+    }))
+  }
+
+  private noopHandleScroll = async (): Promise<void> => {
+    return
+  }
+
+  private handleOpenFolder = async (folderId: string | null): Promise<void> => {
+    if (!folderId) return
+    this.reset()
+    this.exitSearch()
+  }
+
+  private handleExit = (): void => {
+    this.reset()
+    this.plugin.setPluginState({ searchString: '' } as Partial<ProviderPluginState>)
+    this.exitSearch()
+  }
 }
 
-export default GlobalSearchView
+export { createDefaultSearchViewState }
+export type { SearchViewState }
