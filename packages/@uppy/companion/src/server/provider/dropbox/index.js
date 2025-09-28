@@ -183,6 +183,7 @@ export default class Dropbox extends Provider {
         })
 
         const stats = await doSearchEntries({ client, query: options.query })
+        console.log("stats", stats)
         const { email } = userInfo
         return adaptData(stats, email, options.companion.buildURL)
       },

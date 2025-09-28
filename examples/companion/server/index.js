@@ -39,8 +39,8 @@ const companionOptions = {
       secret: 'your instagram secret',
     },
     dropbox: {
-      key: process.env.COMPANION_DROPBOX_KEY,
-      secret: process.env.COMPANION_DROPBOX_SECRET,
+      key: "5jxtf0ct3r6ezbi",
+      secret: "dophk1ol4hdloli",
     },
     box: {
       key: 'your box key',

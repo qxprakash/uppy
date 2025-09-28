@@ -28,6 +28,7 @@ import PartialTreeUtils from '../utils/PartialTreeUtils/index.js'
 import shouldHandleScroll from '../utils/shouldHandleScroll.js'
 import AuthView from './AuthView.js'
 import Header from './Header.js'
+import GlobalSearchView from './GlobalSearchView.js'
 
 export function defaultPickerIcon(): h.JSX.Element {
   return (
@@ -449,6 +450,23 @@ export default class ProviderView<M extends Meta, B extends Body> {
     }
 
     const { partialTree, username, searchString } = this.plugin.getPluginState()
+
+    const supportsServerSearch = typeof (this.provider as any).search === 'function'
+    const trimmedSearchString = searchString.trim()
+    if (supportsServerSearch && trimmedSearchString !== '') {
+      return (
+        <GlobalSearchView<M, B>
+          plugin={this.plugin}
+          openFolder={this.openFolder}
+          handleScroll={this.handleScroll}
+          provider={this.provider}
+          onExit={() => {
+            this.plugin.setPluginState({ searchString: '' })
+          }}
+        />
+      )
+    }
+
     const breadcrumbs = this.getBreadcrumbs()
 
     return (
