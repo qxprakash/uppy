@@ -243,14 +243,6 @@ function GlobalSearchView<M extends Meta, B extends Body>({
           wrapperClassName="uppy-ProviderBrowser-searchFilter"
           inputClassName="uppy-ProviderBrowser-searchFilterInput"
         />
-
-        <button
-          type="button"
-          className="uppy-u-reset uppy-c-btn uppy-ProviderBrowser-searchCancel"
-          onClick={handleExit}
-        >
-          {i18n('cancel')}
-        </button>
       </div>
 
       <Browser<M, B>
