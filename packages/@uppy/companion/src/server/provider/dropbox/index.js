@@ -7,13 +7,14 @@ import { MAX_AGE_REFRESH_TOKEN } from '../../helpers/jwt.js'
 import { prepareStream } from '../../helpers/utils.js'
 import logger from '../../logger.js'
 import Provider from '../Provider.js'
+import { ProviderUserError } from '../error.js'
 import { withProviderErrorHandling } from '../providerErrors.js'
 import adaptData from './adapter.js'
 
 const charsToEncode = /[\u007f-\uffff]/g
 function httpHeaderSafeJson(v) {
   return JSON.stringify(v).replace(charsToEncode, (c) => {
-    return `\\u${(`000${c.charCodeAt(0).toString(16)}`).slice(-4)}`
+    return `\\u${`000${c.charCodeAt(0).toString(16)}`.slice(-4)}`
   })
 }
 
@@ -81,7 +82,6 @@ async function list({ client, directory, query }) {
       })
       .json()
   }
-  console.log("list called with directory inside list function: ", directory)
 
   return client
     .post('files/list_folder', {
@@ -97,17 +97,14 @@ async function list({ client, directory, query }) {
     .json()
 }
 
+function mapMatchesToEntries(matches) {
+  const list = matches || []
+  return list.map((m) => m.metadata.metadata)
+}
+
 async function doSearchEntries({ client, query }) {
-  const q = query?.q ?? query?.query
-  const cursor = query?.cursor
-  let scopePath = query?.path
-  try {
-    if (typeof scopePath === 'string' && scopePath.includes('%')) {
-      scopePath = decodeURIComponent(scopePath)
-    }
-  } catch (_) {
-    // ignore decode errors
-  }
+  console.log('Searching Dropbox for:', query)
+  const cursor = query.cursor
 
   // pagination for search
   if (cursor) {
@@ -118,9 +115,7 @@ async function doSearchEntries({ client, query }) {
       })
       .json()
 
-    const entries = (continueRes.matches || [])
-      .map((m) => m?.metadata?.metadata)
-      .filter(Boolean)
+    const entries = mapMatchesToEntries(continueRes.matches)
     return {
       entries,
       has_more: !!continueRes.has_more,
@@ -128,10 +123,32 @@ async function doSearchEntries({ client, query }) {
     }
   }
 
+  const qRaw = query.q ?? query.query
+  console.log('Searching Dropbox for:', qRaw)
+  if (typeof qRaw !== 'string' || qRaw.trim().length === 0) {
+    throw new ProviderUserError({
+      message: 'Missing search query',
+      code: 'search.query.required',
+    })
+  }
+  const q = qRaw.trim()
+
+  let scopePath = query.path
+  if (typeof scopePath === 'string') {
+    try {
+      scopePath = decodeURIComponent(scopePath)
+    } catch {
+      throw new ProviderUserError({
+        message: 'Invalid encoded path',
+        code: 'search.path.invalid',
+      })
+    }
+  }
+
   const searchRes = await client
     .post('files/search_v2', {
       json: {
-        query: String(q ?? '').trim(),
+        query: q,
         options: {
           path: scopePath || '',
           max_results: 200,
@@ -143,9 +160,7 @@ async function doSearchEntries({ client, query }) {
     })
     .json()
 
-  const entries = (searchRes.matches || [])
-    .map((m) => m?.metadata?.metadata)
-    .filter(Boolean)
+  const entries = mapMatchesToEntries(searchRes.matches)
   return {
     entries,
     has_more: !!searchRes.has_more,
