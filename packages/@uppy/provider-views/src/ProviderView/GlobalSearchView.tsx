@@ -3,15 +3,12 @@ import type {
   Body,
   Meta,
   PartialTree,
-  PartialTreeFile,
-  PartialTreeFolder,
-  PartialTreeFolderNode,
   PartialTreeId,
   UnknownProviderPlugin,
   UnknownProviderPluginState,
 } from '@uppy/core'
 import type { h } from 'preact'
-import Browser from '../Browser.js'
+import Item from '../Item/index.js'
 import SearchInput from '../SearchInput.js'
 
 type ProviderPluginState = UnknownProviderPluginState & {
@@ -113,31 +110,7 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
   render(searchString: string): h.JSX.Element {
     const state = this.getState()
     const checkedSet = new Set(Object.keys(state.checkedItems))
-    const items: (PartialTreeFile | PartialTreeFolderNode)[] = state.results.map(
-      (item) => {
-        const key = getItemKey(item)
-        if (item.isFolder) {
-          return {
-            type: 'folder',
-            id: key,
-            parentId: null,
-            cached: true,
-            nextPagePath: null,
-            status: checkedSet.has(key) ? 'checked' : 'unchecked',
-            data: item,
-          } as PartialTreeFolderNode
-        }
-
-        return {
-          type: 'file',
-          id: key,
-          parentId: null,
-          status: checkedSet.has(key) ? 'checked' : 'unchecked',
-          restrictionError: null,
-          data: item,
-        } as PartialTreeFile
-      },
-    )
+    const items = state.results
 
     return (
       <div className="uppy-ProviderBrowser uppy-ProviderBrowser-viewType--list uppy-ProviderBrowser--searchMode">
@@ -161,19 +134,7 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
           </button>
         </div>
 
-        <Browser<M, B>
-          displayedPartialTree={items}
-          viewType="list"
-          toggleCheckbox={this.handleToggle}
-          handleScroll={this.noopHandleScroll}
-          showTitles
-          i18n={this.i18n}
-          isLoading={state.isLoading}
-          openFolder={this.handleOpenFolder}
-          noResultsLabel={state.error ?? this.i18n('noFilesFound')}
-          virtualList={false}
-          utmSource="Companion"
-        />
+        {this.renderResults(state, items, checkedSet)}
       </div>
     )
   }
@@ -258,7 +219,7 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
       const { partialTree, currentFolderId } = pluginState
       const currentFolder = partialTree.find(
         (item) => item.id === currentFolderId,
-      ) as PartialTreeFolder | undefined
+      ) as { id: PartialTreeId; type: string } | undefined
       const scopePath =
         currentFolder && currentFolder.type !== 'root'
           ? (currentFolder.id as PartialTreeId)
@@ -312,17 +273,15 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
     void this.performSearch(trimmed)
   }
 
-  private handleToggle = (
-    node: PartialTreeFolderNode | PartialTreeFile,
-    _isShiftKeyPressed: boolean,
-  ): void => {
+  private handleToggle = (item: CompanionFile): void => {
     const state = this.getState()
     const nextChecked = { ...state.checkedItems }
-    if (nextChecked[node.id]) {
-      delete nextChecked[node.id]
+    const key = getItemKey(item)
+    if (nextChecked[key]) {
+      delete nextChecked[key]
     } else {
-      const match = state.results.find((item) => getItemKey(item) === node.id)
-      if (match) nextChecked[node.id] = match
+      const match = state.results.find((result) => getItemKey(result) === key)
+      if (match) nextChecked[key] = match
     }
 
     this.setState((prev) => ({
@@ -335,8 +294,8 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
     return
   }
 
-  private handleOpenFolder = async (folderId: string | null): Promise<void> => {
-    if (!folderId) return
+  private handleOpenFolder = async (item: CompanionFile): Promise<void> => {
+    if (!item.isFolder) return
     this.reset()
     this.exitSearch()
   }
@@ -345,6 +304,66 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
     this.reset()
     this.plugin.setPluginState({ searchString: '' } as Partial<ProviderPluginState>)
     this.exitSearch()
+  }
+
+  private renderResults(
+    state: SearchViewState,
+    items: CompanionFile[],
+    checkedSet: Set<string>,
+  ): h.JSX.Element {
+    if (state.isLoading) {
+      return (
+        <div className="uppy-Provider-loading">
+          {this.i18n('loading')}
+        </div>
+      )
+    }
+
+    if (items.length === 0) {
+      return (
+        <div className="uppy-Provider-empty">
+          {state.error ?? this.i18n('noFilesFound')}
+        </div>
+      )
+    }
+
+    return (
+      <div className="uppy-ProviderBrowser-body">
+        <ul className="uppy-ProviderBrowser-list" tabIndex={-1}>
+          {items.map((item) => this.renderResult(item, checkedSet))}
+        </ul>
+      </div>
+    )
+  }
+
+  private renderResult(
+    item: CompanionFile,
+    checkedSet: Set<string>,
+  ): h.JSX.Element {
+    const key = getItemKey(item)
+    const isChecked = checkedSet.has(key)
+    const isFolder = !!item.isFolder
+    const file = {
+      id: key,
+      name: item.name,
+      type: isFolder ? 'folder' : 'file',
+      icon: item.thumbnail ?? item.icon,
+      status: isChecked ? 'checked' : 'unchecked',
+      data: item,
+    } as any
+
+    return (
+      <Item
+        key={file.id}
+        file={file}
+        viewType="list"
+        showTitles
+        i18n={this.i18n}
+        toggleCheckbox={() => this.handleToggle(item)}
+        openFolder={() => this.handleOpenFolder(item)}
+        utmSource="Companion"
+      />
+    )
   }
 }
 
