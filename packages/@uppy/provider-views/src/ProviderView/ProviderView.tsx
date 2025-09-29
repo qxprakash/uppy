@@ -174,6 +174,58 @@ export default class ProviderView<M extends Meta, B extends Body> {
     return this.plugin.getPluginState() as ProviderPluginState
   }
 
+  #handleNavigateToFolder = async (folder: CompanionFile): Promise<void> => {
+    if (typeof (this.provider as any).getFolder !== 'function') {
+      const folderId = (folder.requestPath ?? folder.id ?? null) as PartialTreeId | null
+      if (!folderId) return
+
+      const { partialTree } = this.getPluginState()
+      const rootId = (this.plugin.rootFolderId ?? null) as PartialTreeId | null
+      const folderPath = (folder.requestPath ?? folder.id ?? '') as string
+
+      const { partialTree: withAncestors, parentId: derivedParent } =
+        PartialTreeUtils.ensureAncestorChain(partialTree, folderPath, rootId)
+
+      const explicitParent =
+        ((folder as any).parent ??
+          (folder as any).parentId ??
+          derivedParent) as PartialTreeId | null
+
+      const newPartialTree = PartialTreeUtils.addFolder(withAncestors, folder, {
+        parentId: explicitParent,
+        cached: false,
+      })
+      this.plugin.setPluginState({ partialTree: newPartialTree })
+      await this.openFolder(folderId)
+      return
+    }
+
+    this.setLoading(true)
+    try {
+      const { ancestors, ...rest } = await (this.provider as any).getFolder(
+        folder.requestPath,
+      )
+      const { partialTree } = this.getPluginState()
+      const newPartialTree = PartialTreeUtils.addAncestors(
+        partialTree,
+        ancestors,
+      )
+      const newPartialTreeWithFolder = PartialTreeUtils.addFolder(
+        newPartialTree,
+        rest,
+      )
+      this.plugin.setPluginState({
+        partialTree: newPartialTreeWithFolder,
+        currentFolderId: folder.requestPath,
+        searchString: '',
+      })
+    } catch (error) {
+      handleError(this.plugin.uppy)(error)
+    } finally {
+      this.setLoading(false)
+    }
+  }
+
   #ensureSearchView(i18n: I18n): GlobalSearchView<M, B> {
     if (this.#searchView == null) {
       this.#searchView = new GlobalSearchView<M, B>({
@@ -187,6 +239,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
             searchViewVersion: searchViewVersion + 1,
           } as Partial<ProviderPluginState>)
         },
+        onNavigateToFolder: this.#handleNavigateToFolder,
         i18n,
       })
     } else {

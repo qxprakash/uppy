@@ -47,6 +47,7 @@ interface GlobalSearchViewOptions<M extends Meta, B extends Body> {
   provider: UnknownProviderPlugin<M, B>['provider']
   plugin: UnknownProviderPlugin<M, B>
   exitSearch: () => void
+  onNavigateToFolder: (folder: CompanionFile) => void
   i18n: I18n
 }
 
@@ -56,6 +57,8 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
   private plugin: UnknownProviderPlugin<M, B>
 
   private exitSearch: () => void
+
+  private onNavigateToFolder: (folder: CompanionFile) => void
 
   private i18n: I18n
 
@@ -69,6 +72,7 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
     this.provider = options.provider
     this.plugin = options.plugin
     this.exitSearch = options.exitSearch
+    this.onNavigateToFolder = options.onNavigateToFolder
     this.i18n = options.i18n
   }
 
@@ -296,8 +300,7 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
 
   private handleOpenFolder = async (item: CompanionFile): Promise<void> => {
     if (!item.isFolder) return
-    this.reset()
-    this.exitSearch()
+    this.onNavigateToFolder(item)
   }
 
   private handleExit = (): void => {
