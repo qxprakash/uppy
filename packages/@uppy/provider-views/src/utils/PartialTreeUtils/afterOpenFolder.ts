@@ -13,28 +13,35 @@ const afterOpenFolder = (
   currentPagePath: string | null,
   validateSingleFile: (file: CompanionFile) => string | null,
 ): PartialTree => {
-  console.log('afterOpenFolder called with:', {
-    oldPartialTree,
-    discoveredItems,
-    clickedFolder,
-    currentPagePath,
-  })
   const discoveredFolders = discoveredItems.filter((i) => i.isFolder === true)
   const discoveredFiles = discoveredItems.filter((i) => i.isFolder === false)
 
   const isParentFolderChecked =
     clickedFolder.type === 'folder' && clickedFolder.status === 'checked'
-  const folders: PartialTreeFolderNode[] = discoveredFolders.map((folder) => ({
-    type: 'folder',
-    id: folder.requestPath,
-    cached: false,
-    nextPagePath: null,
-    status: isParentFolderChecked ? 'checked' : 'unchecked',
-    parentId: clickedFolder.id,
-    data: folder,
-  }))
+  const folders: PartialTreeFolderNode[] = discoveredFolders.map((folder) => {
+    const existing = oldPartialTree.find(
+      (item) => item.id === folder.requestPath,
+    ) as PartialTreeFolderNode | undefined
+
+    const status =
+      existing?.status ?? (isParentFolderChecked ? 'checked' : 'unchecked')
+
+    return {
+      type: 'folder',
+      id: folder.requestPath,
+      cached: existing?.cached ?? false,
+      nextPagePath: existing?.nextPagePath ?? null,
+      status,
+      parentId: clickedFolder.id,
+      data: folder,
+    }
+  })
   const files: PartialTreeFile[] = discoveredFiles.map((file) => {
     const restrictionError = validateSingleFile(file)
+    const existing = oldPartialTree.find(
+      (item) => item.id === file.requestPath,
+    ) as PartialTreeFile | undefined
+
     return {
       type: 'file',
       id: file.requestPath,
@@ -42,7 +49,8 @@ const afterOpenFolder = (
       restrictionError,
 
       status:
-        isParentFolderChecked && !restrictionError ? 'checked' : 'unchecked',
+        existing?.status ??
+        (isParentFolderChecked && !restrictionError ? 'checked' : 'unchecked'),
       parentId: clickedFolder.id,
       data: file,
     }
@@ -58,8 +66,17 @@ const afterOpenFolder = (
     folder.id === updatedClickedFolder.id ? updatedClickedFolder : folder,
   )
 
+  const replacementIds = new Set<string>([
+    ...folders.map((folder) => folder.id as string),
+    ...files.map((file) => file.id as string),
+  ])
+
+  const withoutReplacedEntries = partialTreeWithUpdatedClickedFolder.filter(
+    (item) => !(item.id != null && replacementIds.has(item.id as string)),
+  )
+
   const newPartialTree = [
-    ...partialTreeWithUpdatedClickedFolder,
+    ...withoutReplacedEntries,
     ...folders,
     ...files,
   ]
