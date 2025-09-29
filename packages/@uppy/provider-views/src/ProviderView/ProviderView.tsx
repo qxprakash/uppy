@@ -176,27 +176,7 @@ export default class ProviderView<M extends Meta, B extends Body> {
 
   #handleNavigateToFolder = async (folder: CompanionFile): Promise<void> => {
     if (typeof (this.provider as any).getFolder !== 'function') {
-      const folderId = (folder.requestPath ?? folder.id ?? null) as PartialTreeId | null
-      if (!folderId) return
-
-      const { partialTree } = this.getPluginState()
-      const rootId = (this.plugin.rootFolderId ?? null) as PartialTreeId | null
-      const folderPath = (folder.requestPath ?? folder.id ?? '') as string
-
-      const { partialTree: withAncestors, parentId: derivedParent } =
-        PartialTreeUtils.ensureAncestorChain(partialTree, folderPath, rootId)
-
-      const explicitParent =
-        ((folder as any).parent ??
-          (folder as any).parentId ??
-          derivedParent) as PartialTreeId | null
-
-      const newPartialTree = PartialTreeUtils.addFolder(withAncestors, folder, {
-        parentId: explicitParent,
-        cached: false,
-      })
-      this.plugin.setPluginState({ partialTree: newPartialTree })
-      await this.openFolder(folderId)
+      await this.#navigateWithoutGetFolder(folder)
       return
     }
 
@@ -224,6 +204,30 @@ export default class ProviderView<M extends Meta, B extends Body> {
     } finally {
       this.setLoading(false)
     }
+  }
+
+  async #navigateWithoutGetFolder(folder: CompanionFile): Promise<void> {
+    const folderId = (folder.requestPath ?? folder.id ?? null) as PartialTreeId | null
+    if (!folderId) return
+
+    const { partialTree } = this.getPluginState()
+    const rootId = (this.plugin.rootFolderId ?? null) as PartialTreeId | null
+    const folderPath = (folder.requestPath ?? folder.id ?? '') as string
+
+    const { partialTree: withAncestors, parentId: derivedParent } =
+      PartialTreeUtils.ensureAncestorChain(partialTree, folderPath, rootId)
+
+    const explicitParent =
+      ((folder as any).parent ??
+        (folder as any).parentId ??
+        derivedParent) as PartialTreeId | null
+
+    const newPartialTree = PartialTreeUtils.addFolder(withAncestors, folder, {
+      parentId: explicitParent,
+      cached: false,
+    })
+    this.plugin.setPluginState({ partialTree: newPartialTree })
+    await this.openFolder(folderId)
   }
 
   #ensureSearchView(i18n: I18n): GlobalSearchView<M, B> {

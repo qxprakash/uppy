@@ -10,31 +10,45 @@ import type {
 import type { h } from 'preact'
 import Item from '../Item/index.js'
 import SearchInput from '../SearchInput.js'
+import {
+  createAbortableDebounce,
+  type AbortableDebounce,
+} from '../utils/createAbortableDebounce.js'
 
 type ProviderPluginState = UnknownProviderPluginState & {
   searchViewState?: SearchViewState
   searchViewVersion?: number
 }
 
+interface SearchEntry {
+  id: string
+  name: string | null
+  isFolder: boolean
+  icon?: string | null
+  requestPath?: string | null
+}
+
 interface SearchViewState {
-  results: CompanionFile[]
-  checkedItems: Record<string, CompanionFile>
+  entries: SearchEntry[]
+  rawById: Record<string, CompanionFile>
+  checkedIds: string[]
   isLoading: boolean
   error: string | null
   lastQuery: string
 }
 
 const createDefaultSearchViewState = (): SearchViewState => ({
-  results: [],
-  checkedItems: {},
+  entries: [],
+  rawById: {},
+  checkedIds: [],
   isLoading: false,
   error: null,
   lastQuery: '',
 })
 
 const isSearchStatePristine = (state: SearchViewState): boolean =>
-  state.results.length === 0 &&
-  Object.keys(state.checkedItems).length === 0 &&
+  state.entries.length === 0 &&
+  state.checkedIds.length === 0 &&
   state.isLoading === false &&
   state.error === null &&
   state.lastQuery === ''
@@ -62,9 +76,7 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
 
   private i18n: I18n
 
-  private abortController: AbortController | null = null
-
-  private searchDebounceId: number | null = null
+  private readonly searchTask: AbortableDebounce<string>
 
   private pendingQuery: string | null = null
 
@@ -74,6 +86,11 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
     this.exitSearch = options.exitSearch
     this.onNavigateToFolder = options.onNavigateToFolder
     this.i18n = options.i18n
+
+    this.searchTask = createAbortableDebounce<string>({
+      delay: 500,
+      handler: this.executeSearch,
+    })
   }
 
   updateI18n(i18n: I18n): void {
@@ -81,9 +98,7 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
   }
 
   destroy(): void {
-    this.clearDebounce()
-    this.abortController?.abort()
-    this.abortController = null
+    this.searchTask.destroy()
     this.pendingQuery = null
   }
 
@@ -113,8 +128,8 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
 
   render(searchString: string): h.JSX.Element {
     const state = this.getState()
-    const checkedSet = new Set(Object.keys(state.checkedItems))
-    const items = state.results
+    const checkedSet = new Set(state.checkedIds)
+    const items = state.entries
 
     return (
       <div className="uppy-ProviderBrowser uppy-ProviderBrowser-viewType--list uppy-ProviderBrowser--searchMode">
@@ -138,7 +153,7 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
           </button>
         </div>
 
-        {this.renderResults(state, items, checkedSet)}
+        {this.renderResults(state, items, checkedSet, state.rawById)}
       </div>
     )
   }
@@ -167,32 +182,25 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
 
   private scheduleSearch(query: string): void {
     this.pendingQuery = query
-    this.clearDebounce()
-    this.abortController?.abort()
-    this.abortController = null
-    this.searchDebounceId = window.setTimeout(() => {
-      void this.performSearch(this.pendingQuery ?? undefined)
-      this.searchDebounceId = null
-    }, 500)
+    this.searchTask.schedule(query)
   }
 
-  private clearDebounce(): void {
-    if (this.searchDebounceId != null) {
-      window.clearTimeout(this.searchDebounceId)
-      this.searchDebounceId = null
-    }
-  }
-
-  private performSearch = async (forcedQuery?: string): Promise<void> => {
+  private executeSearch = async (
+    query: string,
+    signal: AbortSignal,
+  ): Promise<void> => {
     const pluginState = this.plugin.getPluginState() as ProviderPluginState & {
       partialTree: PartialTree
       currentFolderId: PartialTreeId
       searchString?: string
     }
 
-    const query = (forcedQuery ?? pluginState.searchString ?? '').trim()
+    const trimmedQuery = (query ?? '').trim()
+    const fallbackQuery = (pluginState.searchString ?? '').trim()
+    const effectiveQuery = trimmedQuery || fallbackQuery
+
     this.pendingQuery = null
-    if (!query) {
+    if (!effectiveQuery) {
       this.reset()
       return
     }
@@ -200,23 +208,19 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
     if (typeof (this.provider as any).search !== 'function') {
       this.setState((prev) => ({
         ...prev,
-        results: [],
+        entries: [],
         isLoading: false,
         error: this.i18n('noFilesFound'),
-        lastQuery: query,
+        lastQuery: effectiveQuery,
       }))
       return
     }
-
-    this.abortController?.abort()
-    const controller = new AbortController()
-    this.abortController = controller
 
     this.setState((prev) => ({
       ...prev,
       isLoading: true,
       error: null,
-      lastQuery: query,
+      lastQuery: effectiveQuery,
     }))
 
     try {
@@ -229,21 +233,27 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
           ? (currentFolder.id as PartialTreeId)
           : null
 
-      const response = await (this.provider as any).search(query, {
-        signal: controller.signal,
+      const response = await (this.provider as any).search(effectiveQuery, {
+        signal,
         path: scopePath ?? undefined,
       })
 
+      if (signal.aborted) return
+
       const { items } = response ?? {}
+      const list = Array.isArray(items) ? (items as CompanionFile[]) : []
+      const { entries, rawById } = this.normalizeResults(list)
+
       this.setState((prev) => ({
         ...prev,
-        results: Array.isArray(items) ? items : [],
+        entries,
+        rawById: this.mergeRawById(prev.rawById, rawById, prev.checkedIds),
         isLoading: false,
         error: null,
-        lastQuery: query,
+        lastQuery: effectiveQuery,
       }))
     } catch (error: any) {
-      if (error?.name === 'AbortError') return
+      if (error?.name === 'AbortError' || signal.aborted) return
       this.plugin.uppy.log(error, 'warning')
       this.setState((prev) => ({
         ...prev,
@@ -258,6 +268,7 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
     const trimmed = value.trim()
     if (trimmed === '') {
       this.pendingQuery = null
+      this.searchTask.cancel()
       this.reset()
       return
     }
@@ -265,7 +276,6 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
   }
 
   private handleSubmitSearch = (): void => {
-    this.clearDebounce()
     const { searchString } = this.plugin.getPluginState() as ProviderPluginState & {
       searchString?: string
     }
@@ -274,24 +284,69 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
       this.reset()
       return
     }
-    void this.performSearch(trimmed)
+    this.pendingQuery = trimmed
+    void this.searchTask.flush(trimmed)
+  }
+
+  private normalizeResults(items: CompanionFile[]): {
+    entries: SearchEntry[]
+    rawById: Record<string, CompanionFile>
+  } {
+    const entries: SearchEntry[] = []
+    const rawById: Record<string, CompanionFile> = {}
+
+    items.forEach((item) => {
+      const key = getItemKey(item)
+      if (!key) return
+      rawById[key] = item
+      entries.push({
+        id: key,
+        name: item.name ?? null,
+        isFolder: !!item.isFolder,
+        icon: (item.thumbnail ?? item.icon) ?? null,
+        requestPath: (item.requestPath ?? null) as string | null,
+      })
+    })
+
+    return { entries, rawById }
+  }
+
+  private mergeRawById(
+    previous: Record<string, CompanionFile>,
+    next: Record<string, CompanionFile>,
+    checkedIds: string[],
+  ): Record<string, CompanionFile> {
+    const merged: Record<string, CompanionFile> = {}
+
+    checkedIds.forEach((id) => {
+      const existing = previous[id] ?? next[id]
+      if (existing) merged[id] = existing
+    })
+
+    Object.keys(next).forEach((id) => {
+      merged[id] = next[id]
+    })
+
+    return merged
   }
 
   private handleToggle = (item: CompanionFile): void => {
-    const state = this.getState()
-    const nextChecked = { ...state.checkedItems }
     const key = getItemKey(item)
-    if (nextChecked[key]) {
-      delete nextChecked[key]
-    } else {
-      const match = state.results.find((result) => getItemKey(result) === key)
-      if (match) nextChecked[key] = match
-    }
+    if (!key) return
 
-    this.setState((prev) => ({
-      ...prev,
-      checkedItems: nextChecked,
-    }))
+    this.setState((prev) => {
+      const isChecked = prev.checkedIds.includes(key)
+      const nextChecked = isChecked
+        ? prev.checkedIds.filter((id) => id !== key)
+        : [...prev.checkedIds, key]
+      const nextRaw = { ...prev.rawById, [key]: item }
+
+      return {
+        ...prev,
+        checkedIds: nextChecked,
+        rawById: nextRaw,
+      }
+    })
   }
 
   private noopHandleScroll = async (): Promise<void> => {
@@ -311,8 +366,9 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
 
   private renderResults(
     state: SearchViewState,
-    items: CompanionFile[],
+    entries: SearchEntry[],
     checkedSet: Set<string>,
+    rawById: Record<string, CompanionFile>,
   ): h.JSX.Element {
     if (state.isLoading) {
       return (
@@ -322,7 +378,7 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
       )
     }
 
-    if (items.length === 0) {
+    if (entries.length === 0) {
       return (
         <div className="uppy-Provider-empty">
           {state.error ?? this.i18n('noFilesFound')}
@@ -333,26 +389,38 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
     return (
       <div className="uppy-ProviderBrowser-body">
         <ul className="uppy-ProviderBrowser-list" tabIndex={-1}>
-          {items.map((item) => this.renderResult(item, checkedSet))}
+          {entries.map((entry) => this.renderResult(entry, checkedSet, rawById))}
         </ul>
       </div>
     )
   }
 
   private renderResult(
-    item: CompanionFile,
+    entry: SearchEntry,
     checkedSet: Set<string>,
+    rawById: Record<string, CompanionFile>,
   ): h.JSX.Element {
-    const key = getItemKey(item)
+    const key = entry.id
     const isChecked = checkedSet.has(key)
-    const isFolder = !!item.isFolder
+    const isFolder = entry.isFolder
+    const original = rawById[key]
+    const companion =
+      original ??
+      ({
+        id: entry.id,
+        name: entry.name ?? undefined,
+        isFolder: entry.isFolder,
+        requestPath: entry.requestPath ?? undefined,
+        icon: entry.icon ?? undefined,
+      } as CompanionFile)
+    const displayName = entry.name ?? companion.name ?? null
     const file = {
       id: key,
-      name: item.name,
+      name: displayName,
       type: isFolder ? 'folder' : 'file',
-      icon: item.thumbnail ?? item.icon,
+      icon: entry.icon ?? companion.thumbnail ?? companion.icon,
       status: isChecked ? 'checked' : 'unchecked',
-      data: item,
+      data: companion,
     } as any
 
     return (
@@ -362,8 +430,8 @@ export default class GlobalSearchView<M extends Meta, B extends Body> {
         viewType="list"
         showTitles
         i18n={this.i18n}
-        toggleCheckbox={() => this.handleToggle(item)}
-        openFolder={() => this.handleOpenFolder(item)}
+        toggleCheckbox={() => this.handleToggle(companion)}
+        openFolder={() => this.handleOpenFolder(companion)}
         utmSource="Companion"
       />
     )
