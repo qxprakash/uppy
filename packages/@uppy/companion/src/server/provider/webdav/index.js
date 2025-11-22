@@ -103,6 +103,18 @@ export default class WebdavProvider extends Provider {
       const dir = await client.getDirectoryContents(directory || '/')
 
       dir.forEach((item) => {
+        const debugPayload = {
+          directory: directory || defaultDirectory,
+          basename: item.basename,
+          type: item.type,
+          propKeys: item.props ? Object.keys(item.props) : undefined,
+          nextcloudPreviewUrl:
+            item.props?.['{http://nextcloud.org/ns}preview-url'],
+        }
+        logger.debug(
+          JSON.stringify(debugPayload),
+          'provider.webdav.list.item-inspect',
+        )
         const isFolder = item.type === 'directory'
         const requestPath = encodeURIComponent(
           `${directory || ''}/${item.basename}`,
