@@ -1,5 +1,12 @@
 # uppy
 
+## 5.2.3
+
+### Patch Changes
+
+- Updated dependencies [642c75d]
+  - @uppy/locales@5.1.1
+
 ## 5.2.2
 
 ### Patch Changes
