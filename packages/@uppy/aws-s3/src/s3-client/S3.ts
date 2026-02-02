@@ -222,14 +222,18 @@ class S3mini {
       body = '',
       contentType,
       tolerated = [],
+      signal,
     }: {
       uploadId?: string
       partNumber?: number
       body?: BodyInit
       contentType?: string
       tolerated?: number[]
+      signal?: AbortSignal
     } = {},
   ): Promise<Response> {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+
     // Get pre-signed URL from callback
     const { url } = await this.signRequest({
       method,
@@ -250,6 +254,7 @@ class S3mini {
         requestHeaders,
         body,
         tolerated,
+        signal,
       )
     } catch (err) {
       // If expired token error and using getCredentials, clear cache and retry once
@@ -259,6 +264,8 @@ class S3mini {
         err.code &&
         ['ExpiredToken', 'InvalidAccessKeyId'].includes(err.code)
       ) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+
         // Clear cache
         this.clearCachedCredentials()
 
@@ -275,6 +282,7 @@ class S3mini {
           contentType ? { 'Content-Type': contentType } : {},
           body,
           tolerated,
+          signal,
         )
       }
       throw err
@@ -318,6 +326,7 @@ class S3mini {
   public async getMultipartUploadId(
     key: string,
     fileType: string = C.DEFAULT_STREAM_CONTENT_TYPE,
+    signal?: AbortSignal,
   ): Promise<string> {
     this._checkKey(key)
     if (typeof fileType !== 'string') {
@@ -325,6 +334,7 @@ class S3mini {
     }
     const res = await this._presignedRequest('POST', key, {
       contentType: fileType,
+      signal,
     })
     const parsed = U.parseXml(await res.text()) as Record<string, unknown>
 
@@ -570,6 +580,7 @@ class S3mini {
   public async listParts(
     uploadId: string,
     key: string,
+    signal?: AbortSignal,
   ): Promise<IT.UploadPart[]> {
     this._checkKey(key)
     if (!uploadId) {
@@ -577,6 +588,7 @@ class S3mini {
     }
     const res = await this._presignedRequest('GET', key, {
       uploadId,
+      signal,
     })
 
     const parsed = U.parseXml(await res.text()) as Record<string, unknown>
@@ -609,6 +621,7 @@ class S3mini {
     key: string,
     uploadId: string,
     parts: Array<IT.UploadPart>,
+    signal?: AbortSignal,
   ): Promise<IT.CompleteMultipartUploadResult> {
     const xmlBody = this._buildCompleteMultipartUploadXml(parts)
 
@@ -616,6 +629,7 @@ class S3mini {
       uploadId,
       body: xmlBody,
       contentType: C.XML_CONTENT_TYPE,
+      signal,
     })
 
     const parsed = U.parseXml(await res.text()) as Record<string, unknown>
@@ -653,6 +667,7 @@ class S3mini {
   public async abortMultipartUpload(
     key: string,
     uploadId: string,
+    signal?: AbortSignal,
   ): Promise<object> {
     this._checkKey(key)
     if (!uploadId) {
@@ -661,6 +676,7 @@ class S3mini {
 
     const res = await this._presignedRequest('DELETE', key, {
       uploadId,
+      signal,
     })
     const parsed = U.parseXml(await res.text()) as Record<string, unknown>
     if (
@@ -756,20 +772,28 @@ class S3mini {
     headers: Record<string, string>,
     body?: BodyInit,
     toleratedStatusCodes: number[] = [],
+    signal?: AbortSignal,
   ): Promise<Response> {
     // Wait for online if currently offline
     if (this._isOffline()) {
-      await this._waitForOnline()
+      await this._waitForOnline(signal)
     }
 
     try {
+      const fetchSignal = this.requestAbortTimeout
+        ? signal
+          ? AbortSignal.any([
+              signal,
+              AbortSignal.timeout(this.requestAbortTimeout),
+            ])
+          : AbortSignal.timeout(this.requestAbortTimeout)
+        : signal
+
       const res = await fetch(url, {
         method,
         headers,
         body: ['GET', 'HEAD'].includes(method) ? undefined : body,
-        signal: this.requestAbortTimeout
-          ? AbortSignal.timeout(this.requestAbortTimeout)
-          : undefined,
+        signal: fetchSignal,
       })
       if (res.ok || toleratedStatusCodes.includes(res.status)) {
         return res
@@ -779,7 +803,7 @@ class S3mini {
     } catch (err: unknown) {
       // Check if we're offline - if so, wait and retry
       if (this._isOffline()) {
-        await this._waitForOnline()
+        await this._waitForOnline(signal)
         // Retry the request
         return this._sendRequest(
           url,
@@ -787,6 +811,7 @@ class S3mini {
           headers,
           body,
           toleratedStatusCodes,
+          signal,
         )
       }
 

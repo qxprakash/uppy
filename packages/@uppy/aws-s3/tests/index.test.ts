@@ -7,6 +7,17 @@ import AwsS3, { type AwsBody, type AwsS3Options } from '../src/index.js'
 const KB = 1024
 const MB = KB * KB
 
+/** Deferred helper for test control flow */
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 describe('AwsS3', () => {
   it('Registers AwsS3 upload plugin', () => {
     const core = new Core().use(AwsS3, {
@@ -242,6 +253,175 @@ describe('AwsS3', () => {
       // When cancelAll is called, no files should complete successfully
       expect(result).toBeDefined()
       expect(result?.successful).toHaveLength(0)
+    })
+  })
+
+  describe('queue integration', () => {
+    it('default limit is 6', () => {
+      const core = new Core<Meta, AwsBody>().use(AwsS3, {
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        endpoint: 'https://companion.example.com',
+      })
+      const opts = core.getPlugin('AwsS3')!.opts as AwsS3Options<Meta, AwsBody>
+      expect(opts.limit).toBe(6)
+    })
+
+    it('accepts custom limit option', () => {
+      const core = new Core<Meta, AwsBody>().use(AwsS3, {
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        endpoint: 'https://companion.example.com',
+        limit: 3,
+      })
+      const opts = core.getPlugin('AwsS3')!.opts as AwsS3Options<Meta, AwsBody>
+      expect(opts.limit).toBe(3)
+    })
+
+    it('queue concurrency is respected for simple uploads', async () => {
+      let concurrent = 0
+      let maxConcurrent = 0
+
+      // signRequest never resolves — it stays pending so we can observe concurrency.
+      // The queue will start `limit` tasks, each blocked on signRequest.
+      const signRequest = vi.fn().mockImplementation(() => {
+        concurrent++
+        maxConcurrent = Math.max(maxConcurrent, concurrent)
+        // Never resolve — keeps the queue slot occupied
+        return new Promise(() => {})
+      })
+
+      const core = new Core().use(AwsS3, {
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        signRequest,
+        shouldUseMultipart: false,
+        limit: 2,
+      })
+
+      // Add 4 small files
+      for (let i = 0; i < 4; i++) {
+        core.addFile({
+          source: 'test',
+          name: `file${i}.txt`,
+          type: 'text/plain',
+          data: new File([new Uint8Array(1024)], `file${i}.txt`),
+        })
+      }
+
+      core.upload()
+
+      // Wait for sign requests to be called (2 should start due to limit: 2)
+      await vi.waitFor(() => {
+        expect(signRequest).toHaveBeenCalledTimes(2)
+      })
+
+      // With limit: 2, max concurrent should be 2
+      expect(maxConcurrent).toBe(2)
+      expect(concurrent).toBe(2)
+
+      // The remaining 2 files should NOT have started yet
+      expect(signRequest).toHaveBeenCalledTimes(2)
+
+      // Clean up
+      core.cancelAll()
+    })
+
+    it('abort cancels running and queued tasks', async () => {
+      const gates: Array<{ resolve: () => void }> = []
+
+      const signRequest = vi.fn().mockImplementation(() => {
+        const gate = deferred<void>()
+        gates.push(gate)
+        return gate.promise.then(() => ({
+          url: 'https://test-bucket.s3.us-east-1.amazonaws.com/test',
+        }))
+      })
+
+      const core = new Core().use(AwsS3, {
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        signRequest,
+        shouldUseMultipart: false,
+        limit: 1,
+      })
+
+      core.addFile({
+        source: 'test',
+        name: 'file1.txt',
+        type: 'text/plain',
+        data: new File([new Uint8Array(1024)], 'file1.txt'),
+      })
+      core.addFile({
+        source: 'test',
+        name: 'file2.txt',
+        type: 'text/plain',
+        data: new File([new Uint8Array(1024)], 'file2.txt'),
+      })
+
+      const uploadPromise = core.upload()
+
+      // Wait for first sign request
+      await vi.waitFor(() => {
+        expect(gates.length).toBe(1)
+      })
+
+      // Cancel all uploads
+      core.cancelAll()
+
+      const result = await uploadPromise
+      expect(result?.successful).toHaveLength(0)
+
+      // Second file should never have started signing (limit: 1 and we cancelled)
+      // The signRequest was called once for the first file
+      expect(signRequest).toHaveBeenCalledTimes(1)
+    })
+
+    it('file removal mid-upload aborts only that file', async () => {
+      // signRequest never resolves, keeping uploads in the signing phase
+      const signRequest = vi
+        .fn()
+        .mockImplementation(() => new Promise(() => {}))
+
+      const core = new Core().use(AwsS3, {
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        signRequest,
+        shouldUseMultipart: false,
+        limit: 2,
+      })
+
+      core.addFile({
+        source: 'test',
+        name: 'file1.txt',
+        type: 'text/plain',
+        data: new File([new Uint8Array(1024)], 'file1.txt'),
+      })
+      core.addFile({
+        source: 'test',
+        name: 'file2.txt',
+        type: 'text/plain',
+        data: new File([new Uint8Array(1024)], 'file2.txt'),
+      })
+
+      const fileIds = Object.keys(core.getState().files)
+      core.upload()
+
+      // With limit: 2, both files can start immediately
+      await vi.waitFor(() => {
+        expect(signRequest).toHaveBeenCalledTimes(2)
+      })
+
+      // Remove file1 — this aborts only file1's upload, file2 continues
+      core.removeFile(fileIds[0])
+
+      // file2 should still be in the upload state (not cancelled)
+      const files = core.getState().files
+      expect(Object.keys(files)).toHaveLength(1)
+      expect(files[fileIds[1]]).toBeDefined()
+
+      // Clean up
+      core.cancelAll()
     })
   })
 })
