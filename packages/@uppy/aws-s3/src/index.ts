@@ -5,7 +5,7 @@ import {
   type PluginOpts,
   type Uppy,
 } from '@uppy/core'
-import type { AbortablePromise, Body, Meta, UppyFile } from '@uppy/utils'
+import type { Body, Meta, UppyFile } from '@uppy/utils'
 import {
   filterFilesToEmitUploadStarted,
   filterFilesToUpload,
@@ -69,7 +69,8 @@ export interface AwsS3Options<M extends Meta, B extends Body>
   allowedMetaFields?: string[] | boolean
 
   /**
-   * Maximum number of concurrent S3 requests (sign + upload).
+   * Maximum number of files uploading concurrently.
+   * Each file uploads its parts sequentially.
    * Default: 6
    */
   limit?: number
@@ -106,7 +107,6 @@ const defaultOptions = {
 interface S3UploaderOptions<M extends Meta, B extends Body> {
   uppy: Uppy<M, B>
   s3Client: S3mini
-  queue: TaskQueue
   file: UppyFile<M, B>
   key: string
   shouldUseMultipart?: boolean
@@ -157,14 +157,13 @@ class S3Uploader<M extends Meta, B extends Body> {
   readonly #key: string
   readonly #options: S3UploaderOptions<M, B>
   readonly #eventManager: EventManager<M, B>
-  readonly #queue: TaskQueue
 
   #chunks: Chunk[] = []
   #chunkState: ChunkState[] = []
   #shouldUseMultipart: boolean = false
   #uploadId?: string
   #uploadHasStarted: boolean = false
-  #activePromises: Set<AbortablePromise<unknown>> = new Set()
+  #activeControllers: Set<AbortController> = new Set()
   #isPaused: boolean = false
 
   constructor(data: Blob, options: S3UploaderOptions<M, B>) {
@@ -174,7 +173,6 @@ class S3Uploader<M extends Meta, B extends Body> {
     this.#key = options.key
     this.#options = options
     this.#eventManager = new EventManager(options.uppy)
-    this.#queue = options.queue
     this.#initChunks()
     this.#setupEvents()
   }
@@ -270,26 +268,26 @@ class S3Uploader<M extends Meta, B extends Body> {
     return Math.max(MIN_CHUNK_SIZE, Math.ceil(fileSize / MAX_PARTS))
   }
 
-  #enqueue<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  async #withAbortTracking<T>(
+    fn: (signal: AbortSignal) => Promise<T>,
+  ): Promise<T> {
     if (this.#isPaused) {
-      return Promise.reject(
-        new Error('Upload paused', { cause: pausingUploadReason }),
-      )
+      throw new Error('Upload paused', { cause: pausingUploadReason })
     }
-    const abortable = this.#queue.add(fn)
-    this.#activePromises.add(abortable as AbortablePromise<unknown>)
-    const cleanup = () => {
-      this.#activePromises.delete(abortable as AbortablePromise<unknown>)
+    const controller = new AbortController()
+    this.#activeControllers.add(controller)
+    try {
+      return await fn(controller.signal)
+    } finally {
+      this.#activeControllers.delete(controller)
     }
-    abortable.then(cleanup, cleanup)
-    return abortable
   }
 
   #cancelActiveRequests(reason?: unknown): void {
-    const promises = [...this.#activePromises]
-    this.#activePromises.clear()
-    for (const promise of promises) {
-      promise.abort(reason ?? new DOMException('Aborted', 'AbortError'))
+    const controllers = [...this.#activeControllers]
+    this.#activeControllers.clear()
+    for (const controller of controllers) {
+      controller.abort(reason ?? new DOMException('Aborted', 'AbortError'))
     }
   }
 
@@ -339,7 +337,7 @@ class S3Uploader<M extends Meta, B extends Body> {
       return
     }
     try {
-      const existingParts = await this.#enqueue((signal) =>
+      const existingParts = await this.#withAbortTracking((signal) =>
         this.#s3Client.listParts(this.#uploadId!, this.#key, signal),
       )
       // Sync local state with S3 - mark already-uploaded parts
@@ -359,7 +357,7 @@ class S3Uploader<M extends Meta, B extends Body> {
   }
 
   async #simpleUpload(): Promise<void> {
-    await this.#enqueue(async (signal) => {
+    await this.#withAbortTracking(async (signal) => {
       await this.#s3Client.putObject(
         this.#key,
         this.#data,
@@ -379,7 +377,7 @@ class S3Uploader<M extends Meta, B extends Body> {
   }
 
   async #multipartUpload(): Promise<void> {
-    this.#uploadId = await this.#enqueue((signal) =>
+    this.#uploadId = await this.#withAbortTracking((signal) =>
       this.#s3Client.getMultipartUploadId(
         this.#key,
         this.#file.type || 'application/octet-stream',
@@ -394,7 +392,7 @@ class S3Uploader<M extends Meta, B extends Body> {
     const partNumber = chunkIndex + 1
     const chunkData = this.#data.slice(chunk.start, chunk.end)
 
-    const part = await this.#enqueue((signal) =>
+    const part = await this.#withAbortTracking((signal) =>
       this.#s3Client.uploadPart(
         this.#key,
         this.#uploadId!,
@@ -418,39 +416,10 @@ class S3Uploader<M extends Meta, B extends Body> {
   }
 
   async #uploadRemainingParts(): Promise<void> {
-    const remainingIndices: number[] = []
     for (let i = 0; i < this.#chunks.length; i++) {
-      if (!this.#chunkState[i].etag) remainingIndices.push(i)
+      if (this.#chunkState[i].etag) continue
+      await this.#uploadSinglePart(i)
     }
-    if (remainingIndices.length === 0) {
-      await this.#completeUpload()
-      return
-    }
-
-    let firstRealError: Error | null = null
-    const partPromises = remainingIndices.map((i) =>
-      this.#uploadSinglePart(i).catch((err: Error) => {
-        if (
-          !firstRealError &&
-          !isPauseError(err) &&
-          err.name !== 'AbortError'
-        ) {
-          firstRealError = err
-          this.#cancelActiveRequests()
-        }
-        throw err
-      }),
-    )
-
-    await Promise.allSettled(partPromises)
-
-    if (firstRealError) throw firstRealError
-
-    // Check all parts uploaded (they might not be if paused/aborted)
-    const allDone = this.#chunkState.every((s) => s.etag)
-    if (!allDone)
-      throw new Error('Upload paused', { cause: pausingUploadReason })
-
     await this.#completeUpload()
   }
 
@@ -461,7 +430,7 @@ class S3Uploader<M extends Meta, B extends Body> {
       )
       .filter((p): p is NonNullable<typeof p> => p !== null)
 
-    const result = await this.#enqueue((signal) =>
+    const result = await this.#withAbortTracking((signal) =>
       this.#s3Client.completeMultipartUpload(
         this.#key,
         this.#uploadId!,
@@ -535,13 +504,13 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
     this.#initS3Client()
     this.#queue = new TaskQueue({ concurrency: this.opts.limit })
     this.uppy.addUploader(this.#upload)
-    this.uppy.on('cancel-all', this.#resetResumableCapability)
+    this.uppy.on('cancel-all', this.#handleCancelAll)
   }
 
   uninstall(): void {
     this.#setResumableUploadsCapability(false)
     this.uppy.removeUploader(this.#upload)
-    this.uppy.off('cancel-all', this.#resetResumableCapability)
+    this.uppy.off('cancel-all', this.#handleCancelAll)
     this.#queue.clear()
     // Abort and clean up any in-flight uploads
     for (const fileId of Object.keys(this.#uploaders)) {
@@ -566,8 +535,9 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
     })
   }
 
-  #resetResumableCapability = (): void => {
+  #handleCancelAll = (): void => {
     this.#setResumableUploadsCapability(true)
+    this.#queue.clear()
   }
 
   // --------------------------------------------------------------------------
@@ -660,7 +630,7 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
           new Error('Remote file uploads not yet supported'),
         )
       }
-      return this.#uploadLocalFile(file)
+      return this.#queue.add(async () => this.#uploadLocalFile(file))
     })
 
     await Promise.allSettled(promises)
@@ -681,7 +651,6 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
         const uploader = new S3Uploader<M, B>(data, {
           uppy: this.uppy,
           s3Client: this.#s3Client,
-          queue: this.#queue,
           file,
           key,
           shouldUseMultipart: shouldMultipart,
