@@ -270,15 +270,27 @@ class S3Uploader<M extends Meta, B extends Body> {
     return Math.max(MIN_CHUNK_SIZE, Math.ceil(fileSize / MAX_PARTS))
   }
 
-  #enqueue<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  #enqueue<T>(fn: (signal: AbortSignal) => Promise<T>, debugLabel?: string): Promise<T> {
     if (this.#isPaused) {
       return Promise.reject(
         new Error('Upload paused', { cause: pausingUploadReason }),
       )
     }
-    const abortable = this.#queue.add(fn)
+    const label = debugLabel ?? 'task'
+    this.#options.log?.(
+      `[Queue] Enqueueing ${label} | Running: ${this.#queue.running}, Pending: ${this.#queue.pending}`,
+    )
+    const abortable = this.#queue.add((signal) => {
+      this.#options.log?.(
+        `[Queue] Starting ${label} | Running: ${this.#queue.running}, Pending: ${this.#queue.pending}`,
+      )
+      return fn(signal)
+    })
     this.#activePromises.add(abortable as AbortablePromise<unknown>)
     const cleanup = () => {
+      this.#options.log?.(
+        `[Queue] Completed ${label} | Running: ${this.#queue.running}, Pending: ${this.#queue.pending}`,
+      )
       this.#activePromises.delete(abortable as AbortablePromise<unknown>)
     }
     abortable.then(cleanup, cleanup)
@@ -394,20 +406,29 @@ class S3Uploader<M extends Meta, B extends Body> {
     const partNumber = chunkIndex + 1
     const chunkData = this.#data.slice(chunk.start, chunk.end)
 
-    const part = await this.#enqueue((signal) =>
-      this.#s3Client.uploadPart(
-        this.#key,
-        this.#uploadId!,
-        chunkData,
-        partNumber,
-        (bytesUploaded: number) => {
-          this.#chunkState[chunkIndex].uploaded = bytesUploaded
-          this.#onProgress()
-        },
-        signal,
-      ),
+    this.#options.log?.(
+      `[Multipart] Part ${partNumber}/${this.#chunks.length} queued (${(chunk.size / 1024 / 1024).toFixed(2)} MB)`,
     )
 
+    const part = await this.#enqueue(
+      (signal) =>
+        this.#s3Client.uploadPart(
+          this.#key,
+          this.#uploadId!,
+          chunkData,
+          partNumber,
+          (bytesUploaded: number) => {
+            this.#chunkState[chunkIndex].uploaded = bytesUploaded
+            this.#onProgress()
+          },
+          signal,
+        ),
+      `Part ${partNumber}/${this.#chunks.length}`,
+    )
+
+    this.#options.log?.(
+      `[Multipart] Part ${partNumber}/${this.#chunks.length} uploaded successfully`,
+    )
     this.#chunkState[chunkIndex].uploaded = chunk.size
     this.#chunkState[chunkIndex].etag = part.etag
     this.#onProgress()
