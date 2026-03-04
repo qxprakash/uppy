@@ -1,8 +1,19 @@
 import { userEvent } from '@vitest/browser/context'
-import { describe, expect, test } from 'vitest'
+import { setupWorker } from 'msw/browser'
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { render } from 'vitest-browser-svelte'
+import { tusMswHandlers } from '../../tus-msw-handlers'
 import PropsReactivity from '../src/components/test/props-reactivity.svelte'
 import App from '../src/routes/+page.svelte'
+
+const worker = setupWorker(...tusMswHandlers)
+
+beforeAll(async () => {
+  await worker.start({ onUnhandledRequest: 'bypass' })
+})
+afterAll(() => {
+  worker.stop()
+})
 
 const createMockFile = (name: string, type: string, size: number = 1024) => {
   return new File(['test content'], name, { type })
