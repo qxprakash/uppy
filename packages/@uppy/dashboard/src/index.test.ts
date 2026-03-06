@@ -116,6 +116,8 @@ describe('Dashboard', () => {
     })
 
     expect(core.getPlugin('Dashboard')!.opts.width).toEqual(300)
+
+    core.destroy()
   })
 
   it('should use updated locale from Core, when it’s set via Core’s setOptions()', () => {
@@ -134,6 +136,8 @@ describe('Dashboard', () => {
     })
 
     expect(core.getPlugin('Dashboard')!.i18n('myDevice')).toEqual('Май дивайс')
+
+    core.destroy()
   })
 
   it('should accept a callback as `metaFields` option', () => {
