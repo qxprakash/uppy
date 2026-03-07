@@ -2,12 +2,6 @@ name: Test Examples (Flake Detection)
 
 on:
   workflow_dispatch:
-    inputs:
-      iterations:
-        description: 'Number of times to run the tests'
-        required: false
-        default: '5'
-        type: string
 
 env:
   YARN_ENABLE_GLOBAL_CACHE: false
@@ -50,30 +44,37 @@ jobs:
       - name: Build
         run: corepack yarn run build
 
-      - name: Run React example test
-        id: react
-        continue-on-error: true
-        run: corepack yarn workspace example-react test --browser.headless
-
-      - name: Run Vue example test
-        id: vue
-        continue-on-error: true
-        run: corepack yarn workspace example-vue test --browser.headless
-
-      - name: Run SvelteKit example test
-        id: svelte
-        continue-on-error: true
-        run: corepack yarn workspace example-sveltekit test --browser.headless
-
-      - name: Summary
+      - name: Run all example tests in parallel
         run: |
-          echo "## Run ${{ matrix.run }} Results" >> $GITHUB_STEP_SUMMARY
-          echo "| Framework | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| React | ${{ steps.react.outcome }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Vue | ${{ steps.vue.outcome }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| SvelteKit | ${{ steps.svelte.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          corepack yarn workspace example-react test --browser.headless > /tmp/react.log 2>&1 &
+          REACT_PID=$!
+          corepack yarn workspace example-vue test --browser.headless > /tmp/vue.log 2>&1 &
+          VUE_PID=$!
+          corepack yarn workspace example-sveltekit test --browser.headless > /tmp/svelte.log 2>&1 &
+          SVELTE_PID=$!
 
-      - name: Fail if any test failed
-        if: steps.react.outcome == 'failure' || steps.vue.outcome == 'failure' || steps.svelte.outcome == 'failure'
-        run: exit 1
+          REACT_EXIT=0; VUE_EXIT=0; SVELTE_EXIT=0
+          wait $REACT_PID || REACT_EXIT=$?
+          wait $VUE_PID || VUE_EXIT=$?
+          wait $SVELTE_PID || SVELTE_EXIT=$?
+
+          echo "## Run ${{ matrix.run }} Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Framework | Exit Code | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| React | $REACT_EXIT | $([ $REACT_EXIT -eq 0 ] && echo 'PASS' || echo 'FAIL') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Vue | $VUE_EXIT | $([ $VUE_EXIT -eq 0 ] && echo 'PASS' || echo 'FAIL') |" >> $GITHUB_STEP_SUMMARY
+          echo "| SvelteKit | $SVELTE_EXIT | $([ $SVELTE_EXIT -eq 0 ] && echo 'PASS' || echo 'FAIL') |" >> $GITHUB_STEP_SUMMARY
+
+          echo ""
+          echo "=== React output ==="
+          cat /tmp/react.log
+          echo ""
+          echo "=== Vue output ==="
+          cat /tmp/vue.log
+          echo ""
+          echo "=== SvelteKit output ==="
+          cat /tmp/svelte.log
+
+          if [ $REACT_EXIT -ne 0 ] || [ $VUE_EXIT -ne 0 ] || [ $SVELTE_EXIT -ne 0 ]; then
+            exit 1
+          fi
