@@ -16,6 +16,16 @@
     <h1>AWS S3 upload example</h1>
     <p>Demonstrates the <code>@uppy/aws-s3</code> plugin with two signing modes.</p>
 
+    <div style="background: #fffbe6; border: 1px solid #ffe58f; padding: 12px; border-radius: 4px; margin: 10px 0; font-size: 13px;">
+      <strong>Regression Verification Mode</strong><br/>
+      Upload 3+ files &gt; 100MB. Rapidly pause/resume one file mid-upload. Then check:<br/>
+      <code>#4313</code> Console summary after complete — each file must have a unique uploadId<br/>
+      <code>#5667</code> Console — each part must show only [PartNumber, ETag]<br/>
+      <code>#5328</code> Network tab — find <code>POST ?uploadId=...</code>, check XML has proper <code>&lt;Part&gt;</code> elements<br/>
+      <code>#4648</code> Console — pause/resume logs with no TypeError<br/>
+      <code>#3447</code> Console — "upload-success" must appear exactly once per file
+    </div>
+
     <details open name="uppy">
       <summary>Sign on the client (STS credentials)</summary>
       <p class="description">
@@ -38,14 +48,75 @@
     <script type="module">
       import { Uppy, Dashboard, AwsS3, GoldenRetriever } from './uppy.min.mjs'
 
+      // ========== REGRESSION VERIFICATION LOGS ==========
+      // Upload 3+ files > 100MB to trigger multipart.
+      // Rapidly pause/resume one file mid-upload.
+      // Then check the console for pass/fail markers.
+
+      // #4313: Track uploadIds per file — each must be unique
+      const uploadIdsByFile = new Map()
+      const successCountByFile = new Map()
+
       function onUploadComplete(result) {
         console.log('Upload complete!', result.successful)
+
+        // #4313 summary
+        if (uploadIdsByFile.size > 0) {
+          const uniqueIds = new Set(uploadIdsByFile.values())
+          if (uniqueIds.size === uploadIdsByFile.size) {
+            console.log(`%c#4313 PASS: ${uploadIdsByFile.size} files, all got unique uploadIds`, 'color: green; font-weight: bold')
+          } else {
+            console.error(`#4313 FAIL: ${uploadIdsByFile.size} files but only ${uniqueIds.size} unique uploadIds`)
+          }
+          uploadIdsByFile.forEach((id, name) => console.log(`   ${name} -> ${id}`))
+        }
+
+        // #3447 summary
+        let allOnce = true
+        successCountByFile.forEach((count, name) => {
+          if (count !== 1) {
+            console.error(`#3447 FAIL: "${name}" got upload-success ${count} times (expected 1)`)
+            allOnce = false
+          }
+        })
+        if (allOnce && successCountByFile.size > 0) {
+          console.log(`%c#3447 PASS: all ${successCountByFile.size} files got upload-success exactly once`, 'color: green; font-weight: bold')
+        }
       }
+
       function onUploadSuccess(file, data) {
-        console.log('Upload success:', file.meta.name, data)
+        const name = file.meta.name
+        console.log('Upload success:', name, data)
+        successCountByFile.set(name, (successCountByFile.get(name) || 0) + 1)
+        if (successCountByFile.get(name) > 1) {
+          console.error(`#3447 FAIL: "${name}" got upload-success ${successCountByFile.get(name)} times!`)
+        }
       }
+
       function onUploadError(file, error) {
         console.error('Upload error:', file?.meta?.name, error)
+      }
+
+      // #5667: Verify part objects only contain PartNumber and ETag
+      function onPartUploaded(file, part) {
+        const name = file?.meta?.name || 'unknown'
+        const keys = Object.keys(part)
+        const allowed = ['PartNumber', 'ETag']
+        const extra = keys.filter(k => !allowed.includes(k))
+        if (extra.length > 0) {
+          console.error(`#5667 FAIL: "${name}" part ${part.PartNumber} has extra keys:`, extra, part)
+        } else {
+          console.log(`%c#5667 OK: "${name}" part ${part.PartNumber} — keys: [${keys.join(', ')}]`, 'color: green')
+        }
+      }
+
+      // #4648: Track pause/resume without crash
+      let pauseResumeCount = 0
+      function onUploadPause(file, isPaused) {
+        pauseResumeCount++
+        const name = file?.meta?.name || 'unknown'
+        const action = isPaused ? 'PAUSED' : 'RESUMED'
+        console.log(`%c#4648 OK: ${action} "${name}" (#${pauseResumeCount}) — no crash`, 'color: green')
       }
 
       // Mode 1: Client-side signing with STS credentials
@@ -79,6 +150,8 @@
         uppy.on('complete', onUploadComplete)
         uppy.on('upload-success', onUploadSuccess)
         uppy.on('upload-error', onUploadError)
+        uppy.on('s3-multipart:part-uploaded', onPartUploaded) // #5667
+        uppy.on('upload-pause', onUploadPause)                // #4648
       }
 
       // Mode 2: Server-side signing with presigned URLs
@@ -105,7 +178,23 @@
                 }),
               })
               if (!response.ok) throw new Error('Failed to get presigned URL')
-              return response.json()
+              const result = await response.json()
+
+              // #4313: Track CreateMultipartUpload — the uploadId comes from
+              // the S3 XML response (not from the presign response), but we
+              // can detect when a new multipart upload is being initiated.
+              if (request.method === 'POST' && !request.uploadId) {
+                console.log(`#4313: CreateMultipartUpload signed for key "${request.key}"`)
+              }
+              // #4313: Track uploadId from subsequent UploadPart calls
+              if (request.uploadId && request.key) {
+                if (!uploadIdsByFile.has(request.key)) {
+                  uploadIdsByFile.set(request.key, request.uploadId)
+                  console.log(`#4313: key "${request.key}" using uploadId: ${request.uploadId}`)
+                }
+              }
+
+              return result
             },
           })
           .use(GoldenRetriever)
@@ -113,6 +202,8 @@
         uppy.on('complete', onUploadComplete)
         uppy.on('upload-success', onUploadSuccess)
         uppy.on('upload-error', onUploadError)
+        uppy.on('s3-multipart:part-uploaded', onPartUploaded) // #5667
+        uppy.on('upload-pause', onUploadPause)                // #4648
       }
     </script>
   </body>
