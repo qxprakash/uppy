@@ -23,7 +23,13 @@ uppy.use(Dashboard, {
   plugins: ['GoogleDrive', 'Webcam'],
 })
 uppy.use(AwsS3, {
-  endpoint: 'http://localhost:3020',
-  bucket: 'uppy-test',
-  region: 'us-east-1',
+  s3Endpoint: "https://testbucketnewfix.s3.eu-north-1.amazonaws.com",
+  companionEndpoint: 'http://localhost:3020',
+})
+
+uppy.on('upload-success', (file, data) => {
+  console.log('Upload success:', file.name, data)
+})
+uppy.on('upload-error', (file, error) => {
+  console.error('Upload error:', file?.name, error)
 })
