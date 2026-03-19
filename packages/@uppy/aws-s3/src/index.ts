@@ -2,17 +2,24 @@ import type { RequestClient } from '@uppy/companion-client'
 import {
   BasePlugin,
   type DefinePluginOpts,
-  EventManager,
   type PluginOpts,
   type Uppy,
 } from '@uppy/core'
-import type { Body, Meta, RemoteUppyFile, UppyFile } from '@uppy/utils'
+import type {
+  Body,
+  LocalUppyFile,
+  Meta,
+  RemoteUppyFile,
+  UppyFile,
+} from '@uppy/utils'
 import {
   filterFilesToEmitUploadStarted,
   filterFilesToUpload,
+  getAllowedMetaFields,
   TaskQueue,
 } from '@uppy/utils'
 import packageJson from '../package.json' with { type: 'json' }
+import S3Uploader, { type UploadResult } from './S3Uploader.js'
 import S3mini from './s3-client/S3.js'
 import type * as IT from './s3-client/types.js'
 
@@ -32,23 +39,6 @@ type PartUploadedCallback<M extends Meta, B extends Body> = (
   part: { PartNumber: number; ETag: string },
 ) => void
 
-/** Persisted S3 multipart state for Golden Retriever resume support */
-interface S3MultipartState {
-  uploadId: string
-  key: string
-}
-
-declare module '@uppy/utils' {
-  // biome-ignore lint/correctness/noUnusedVariables: must match existing interface signature
-  export interface LocalUppyFile<M extends Meta, B extends Body> {
-    s3Multipart?: S3MultipartState
-  }
-  // biome-ignore lint/correctness/noUnusedVariables: must match existing interface signature
-  export interface RemoteUppyFile<M extends Meta, B extends Body> {
-    s3Multipart?: S3MultipartState
-  }
-}
-
 declare module '@uppy/core' {
   export interface UppyEventMap<M extends Meta, B extends Body> {
     's3-multipart:part-uploaded': PartUploadedCallback<M, B>
@@ -57,9 +47,14 @@ declare module '@uppy/core' {
 
 export interface AwsS3Options<M extends Meta, B extends Body>
   extends PluginOpts {
-  bucket: string
-  region?: string
-  endpoint?: string
+  /** AWS region, required for signing */
+  region: string
+
+  /** Companion URL if you want to use Companion for signing */
+  companionEndpoint?: string
+
+  /** S3 upload endpoint */
+  s3Endpoint: string
 
   /**
    * Custom function to sign requests.
@@ -109,12 +104,6 @@ export interface AwsS3Options<M extends Meta, B extends Body>
 
 const MB = 1024 * 1024
 
-/** Minimum chunk size required by S3 (5MB) */
-const MIN_CHUNK_SIZE = 5 * MB
-
-/** Maximum number of parts allowed by S3 */
-const MAX_PARTS = 10000
-
 const defaultOptions = {
   shouldUseMultipart: (file: UppyFile<any, any>) => (file.size || 0) > 100 * MB,
   allowedMetaFields: true,
@@ -124,395 +113,6 @@ const defaultOptions = {
 
 // ============================================================================
 // S3Uploader Types
-// ============================================================================
-
-interface S3UploaderOptions<M extends Meta, B extends Body> {
-  uppy: Uppy<M, B>
-  s3Client: S3mini
-  file: UppyFile<M, B>
-  key: string
-  shouldUseMultipart?: boolean
-  getChunkSize?: (file: { size: number }) => number
-  /** Called when a multipart upload is created, for persisting resume state */
-  onMultipartCreated?: (uploadId: string, key: string) => void
-  /** If provided, resume this multipart upload instead of creating a new one */
-  resumeUploadId?: string
-  onProgress?: (bytesUploaded: number, bytesTotal: number) => void
-  onPartComplete?: (part: { PartNumber: number; ETag: string }) => void
-  onSuccess?: (result: UploadResult) => void
-  onError?: (err: Error) => void
-  onAbort?: () => void
-  log?: (message: string | Error, type?: 'error' | 'warning') => void
-}
-
-interface UploadResult {
-  location: string
-  key: string
-  bucket?: string
-  uploadId?: string
-}
-
-interface Chunk {
-  index: number
-  start: number
-  end: number
-  size: number
-}
-
-interface ChunkState {
-  uploaded: number
-  etag?: string
-}
-
-/** Reason for pausing (not a real error) */
-const pausingUploadReason = Symbol('pausing upload, not an actual error')
-
-/** Type guard to check if an error is from pausing (not a real failure) */
-const isPauseError = (err: unknown): boolean =>
-  err instanceof Error &&
-  (err as { cause?: unknown }).cause === pausingUploadReason
-
-// ============================================================================
-// S3Uploader Class
-// ============================================================================
-
-class S3Uploader<M extends Meta, B extends Body> {
-  readonly #s3Client: S3mini
-  readonly #file: UppyFile<M, B>
-  readonly #data: Blob
-  readonly #key: string
-  readonly #options: S3UploaderOptions<M, B>
-  readonly #eventManager: EventManager<M, B>
-
-  #chunks: Chunk[] = []
-  #chunkState: ChunkState[] = []
-  #shouldUseMultipart: boolean = false
-  #uploadId?: string
-  #uploadHasStarted: boolean = false
-  #abortController: AbortController = new AbortController()
-
-  constructor(data: Blob, options: S3UploaderOptions<M, B>) {
-    this.#s3Client = options.s3Client
-    this.#file = options.file
-    this.#data = data
-    this.#key = options.key
-    this.#options = options
-    this.#eventManager = new EventManager(options.uppy)
-    this.#initChunks()
-    this.#setupEvents()
-
-    // Seed resume state from Golden Retriever (persisted across page refreshes)
-    if (options.resumeUploadId) {
-      this.#uploadId = options.resumeUploadId
-      this.#uploadHasStarted = true
-    }
-  }
-
-  #setupEvents(): void {
-    const fileId = this.#file.id
-
-    this.#eventManager.onFileRemove(fileId, () => {
-      this.abort()
-      this.#options.onAbort?.()
-    })
-
-    this.#eventManager.onCancelAll(fileId, () => {
-      this.abort()
-      this.#options.onAbort?.()
-    })
-
-    this.#eventManager.onFilePause(fileId, (isPaused) => {
-      if (isPaused) {
-        this.pause()
-      } else {
-        this.start()
-      }
-    })
-
-    this.#eventManager.onPauseAll(fileId, () => {
-      this.pause()
-    })
-
-    this.#eventManager.onResumeAll(fileId, () => {
-      this.start()
-    })
-
-    this.#eventManager.onRetry(fileId, () => {
-      this.start()
-    })
-
-    this.#eventManager.onRetryAll(fileId, () => {
-      this.start()
-    })
-  }
-
-  #initChunks(): void {
-    const fileSize = this.#data.size
-
-    // Step 1: Determine if we should use multipart
-    // - If explicitly set to boolean, use that
-    // - Otherwise, use multipart for files larger than MIN_CHUNK_SIZE (5MB)
-    if (typeof this.#options.shouldUseMultipart === 'boolean') {
-      this.#shouldUseMultipart = this.#options.shouldUseMultipart
-    } else {
-      this.#shouldUseMultipart = fileSize > MIN_CHUNK_SIZE
-    }
-
-    // Step 2: Force simple upload if file is too small for multipart
-    // (S3 requires minimum 5MB parts, except for the last part)
-    if (fileSize <= MIN_CHUNK_SIZE) {
-      this.#shouldUseMultipart = false
-    }
-
-    // Step 3: Create chunks based on upload strategy
-    if (this.#shouldUseMultipart) {
-      // Calculate chunk size: at least MIN_CHUNK_SIZE, but may be larger for huge files
-      let chunkSize = this.#getChunkSize(fileSize)
-      chunkSize = Math.max(chunkSize, MIN_CHUNK_SIZE)
-
-      // Ensure we don't exceed MAX_PARTS (S3 limit: 10,000 parts)
-      if (Math.ceil(fileSize / chunkSize) > MAX_PARTS) {
-        chunkSize = Math.ceil(fileSize / MAX_PARTS)
-      }
-
-      // Create chunk definitions
-      for (
-        let offset = 0, index = 0;
-        offset < fileSize;
-        offset += chunkSize, index++
-      ) {
-        const end = Math.min(offset + chunkSize, fileSize)
-        this.#chunks.push({ index, start: offset, end, size: end - offset })
-      }
-    } else {
-      // Simple upload: single chunk for the entire file
-      this.#chunks = [{ index: 0, start: 0, end: fileSize, size: fileSize }]
-    }
-
-    this.#chunkState = this.#chunks.map(() => ({ uploaded: 0 }))
-  }
-
-  #getChunkSize(fileSize: number): number {
-    if (this.#options.getChunkSize) {
-      return this.#options.getChunkSize({ size: fileSize })
-    }
-    return Math.max(MIN_CHUNK_SIZE, Math.ceil(fileSize / MAX_PARTS))
-  }
-
-  start(): void {
-    if (this.#uploadHasStarted) {
-      // Abort any pending operations (if not already aborted)
-      if (!this.#abortController.signal.aborted) {
-        this.#abortController.abort(pausingUploadReason)
-      }
-      // Always create a fresh AbortController for resume
-      this.#abortController = new AbortController()
-      this.#resumeUpload()
-    } else {
-      this.#createUpload()
-    }
-  }
-
-  pause(): void {
-    this.#abortController.abort(pausingUploadReason)
-    this.#abortController = new AbortController()
-  }
-
-  abort(opts?: { abortOnS3?: boolean }): void {
-    this.#abortController.abort()
-    // Clean up event listeners
-    this.#eventManager.remove()
-    if (opts?.abortOnS3 !== false && this.#uploadId) {
-      this.#s3Client
-        .abortMultipartUpload(this.#key, this.#uploadId)
-        .catch((abortErr) => {
-          this.#options.log?.(abortErr, 'warning')
-        })
-    }
-  }
-
-  async #createUpload(): Promise<void> {
-    this.#uploadHasStarted = true
-    try {
-      if (this.#shouldUseMultipart) {
-        await this.#multipartUpload()
-      } else {
-        await this.#simpleUpload()
-      }
-    } catch (err) {
-      this.#onError(err as Error)
-    }
-  }
-
-  async #resumeUpload(): Promise<void> {
-    if (!this.#uploadId) {
-      await this.#createUpload()
-      return
-    }
-    try {
-      const existingParts = await this.#s3Client.listParts(
-        this.#uploadId,
-        this.#key,
-      )
-      // Sync local state with S3 - mark already-uploaded parts
-      for (const part of existingParts) {
-        const chunkIndex = part.partNumber - 1
-        if (chunkIndex >= 0 && chunkIndex < this.#chunkState.length) {
-          this.#chunkState[chunkIndex].uploaded = this.#chunks[chunkIndex].size
-          this.#chunkState[chunkIndex].etag = part.etag
-        }
-      }
-      // Emit progress update to reflect already-uploaded parts
-      this.#onProgress()
-      await this.#uploadRemainingParts()
-    } catch (err) {
-      this.#onError(err as Error)
-    }
-  }
-
-  async #simpleUpload(): Promise<void> {
-    const signal = this.#abortController.signal
-    if (signal.aborted) {
-      throw new Error('Upload aborted', { cause: signal.reason })
-    }
-
-    await this.#s3Client.putObject(
-      this.#key,
-      this.#data,
-      this.#file.type || 'application/octet-stream',
-      (bytesUploaded: number) => {
-        this.#chunkState[0].uploaded = bytesUploaded
-        this.#onProgress()
-      },
-      signal,
-    )
-
-    this.#onSuccess({
-      location: `${this.#s3Client.endpoint}/${this.#key}`,
-      key: this.#key,
-    })
-  }
-
-  async #multipartUpload(): Promise<void> {
-    const signal = this.#abortController.signal
-    if (signal.aborted) {
-      throw new Error('Upload aborted', { cause: signal.reason })
-    }
-
-    this.#uploadId = await this.#s3Client.getMultipartUploadId(
-      this.#key,
-      this.#file.type || 'application/octet-stream',
-    )
-
-    // Persist resume state so Golden Retriever can restore it after page refresh
-    this.#options.onMultipartCreated?.(this.#uploadId, this.#key)
-
-    await this.#uploadRemainingParts()
-  }
-
-  async #uploadRemainingParts(): Promise<void> {
-    const signal = this.#abortController.signal
-    // Collect already-uploaded parts (from resume)
-    const parts = this.#chunkState
-      .map((state, i) =>
-        state.etag ? { partNumber: i + 1, etag: state.etag } : null,
-      )
-      .filter((p): p is NonNullable<typeof p> => p !== null)
-
-    for (let i = 0; i < this.#chunks.length; i++) {
-      if (signal.aborted) {
-        throw new Error('Upload aborted', { cause: signal.reason })
-      }
-      if (this.#chunkState[i].etag) continue
-
-      const chunk = this.#chunks[i]
-      const partNumber = i + 1
-      const chunkData = this.#data.slice(chunk.start, chunk.end)
-      const chunkIndex = i // Capture for closure
-
-      const part = await this.#s3Client.uploadPart(
-        this.#key,
-        this.#uploadId!,
-        chunkData,
-        partNumber,
-        (bytesUploaded: number) => {
-          this.#chunkState[chunkIndex].uploaded = bytesUploaded
-          this.#onProgress()
-        },
-        signal,
-      )
-
-      this.#chunkState[i].uploaded = chunk.size
-      this.#chunkState[i].etag = part.etag
-      parts.push({ partNumber: part.partNumber, etag: part.etag })
-      this.#onProgress()
-
-      if (this.#options.onPartComplete) {
-        this.#options.onPartComplete({
-          PartNumber: part.partNumber,
-          ETag: part.etag,
-        })
-      }
-    }
-
-    if (signal.aborted) {
-      throw new Error('Upload aborted', { cause: signal.reason })
-    }
-
-    const result = await this.#s3Client.completeMultipartUpload(
-      this.#key,
-      this.#uploadId!,
-      parts,
-    )
-
-    this.#onSuccess({
-      location: result.location,
-      key: result.key,
-      bucket: result.bucket,
-      uploadId: this.#uploadId,
-    })
-  }
-
-  #onProgress(): void {
-    if (!this.#options.onProgress) return
-    const bytesUploaded = this.#chunkState.reduce(
-      (sum, state) => sum + state.uploaded,
-      0,
-    )
-    this.#options.onProgress(bytesUploaded, this.#data.size)
-  }
-
-  #onSuccess(result: UploadResult): void {
-    // If the upload was aborted (file removed mid-upload), the network request
-    // may still complete successfully. Don't emit success in this case since
-    // the file no longer exists in Uppy's state.
-    if (this.#abortController.signal.aborted) {
-      this.#eventManager.remove()
-      return
-    }
-    this.#eventManager.remove()
-    this.#options.onSuccess?.(result)
-  }
-
-  #onError(err: Error): void {
-    if (isPauseError(err)) return
-    // Also ignore abort signals from intentional cancellation
-    if (err.name === 'AbortError') return
-    // If we intentionally aborted, don't report any subsequent errors
-    // (e.g., S3 returning 404 NoSuchUpload after we aborted the upload)
-    if (this.#abortController.signal.aborted) return
-
-    // NOTE: We intentionally do NOT abort the multipart upload on S3 here.
-    // This allows the user to retry and resume from where they left off.
-    // The multipart upload is only aborted when the user explicitly cancels
-    // (via the abort() method with abortOnS3: true).
-
-    this.#options.onError?.(err)
-  }
-}
-
-// ============================================================================
-// Plugin Class
 // ============================================================================
 
 export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
@@ -554,10 +154,6 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
     }
   }
 
-  // --------------------------------------------------------------------------
-  // Resumable Uploads Capability
-  // --------------------------------------------------------------------------
-
   #setResumableUploadsCapability = (value: boolean): void => {
     const { capabilities } = this.uppy.getState()
     this.uppy.setState({
@@ -578,51 +174,39 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
   // --------------------------------------------------------------------------
 
   #initS3Client(): void {
-    const { endpoint, signRequest, getCredentials, bucket, region } = this.opts
+    const {
+      companionEndpoint,
+      signRequest,
+      getCredentials,
+      s3Endpoint,
+      region,
+    } = this.opts
 
-    if (typeof bucket !== 'string' || bucket.trim() === '') {
-      throw new Error(
-        'AwsS3: `bucket` option is required and must be a non-empty string',
-      )
-    }
-
-    if (typeof region !== 'string' || region.trim() === '') {
-      throw new Error(
-        'AwsS3: `region` option is required and must be a non-empty string',
-      )
-    }
-
-    const bucketName = bucket.trim()
-
-    if (!signRequest && !getCredentials && !endpoint) {
-      throw new Error(
-        'AwsS3: `endpoint`, `signRequest`, or `getCredentials` is required',
-      )
-    }
-
-    const s3Endpoint = `https://${bucketName}.s3.${region}.amazonaws.com`
-
-    if (getCredentials) {
+    if (getCredentials != null) {
       // Mode: Temporary credentials (client-side signing)
       this.#s3Client = new S3mini({
         endpoint: s3Endpoint,
         getCredentials,
         region,
       })
-    } else if (signRequest) {
+    } else if (signRequest != null) {
       // Mode: Custom signing function
       this.#s3Client = new S3mini({
         endpoint: s3Endpoint,
         signRequest,
         region,
       })
-    } else {
-      // Mode: Companion signing (endpoint is guaranteed to be set here)
+    } else if (companionEndpoint != null) {
+      // Mode: Companion signing
       this.#s3Client = new S3mini({
         endpoint: s3Endpoint,
-        signRequest: this.#createCompanionSigner(endpoint!),
+        signRequest: this.#createCompanionSigner(companionEndpoint),
         region,
       })
+    } else {
+      throw new TypeError(
+        'One of options `companionEndpoint`, `signRequest`, or `getCredentials` is required',
+      )
     }
   }
 
@@ -671,7 +255,7 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
         if (!currentFile) {
           return
         }
-        return this.#uploadLocalFile(currentFile)
+        return this.#uploadLocalFile(currentFile as LocalUppyFile<M, B>) // assume it's still a local file since remote files aren't queued
       })
     })
 
@@ -685,34 +269,19 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
   // Local File Upload
   // --------------------------------------------------------------------------
 
-  async #uploadLocalFile(file: UppyFile<M, B>): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const data = file.data as Blob
-
-      // Check for persisted resume state (from Golden Retriever)
-      const resumeState = file.s3Multipart
-      const key = resumeState?.key ?? this.#generateKey(file)
-      const shouldMultipart = resumeState
-        ? true // persisted state means it was a multipart upload
-        : this.#shouldUseMultipart(file)
-
-      try {
-        // Create uploader (events are wired internally)
-        const uploader = new S3Uploader<M, B>(data, {
+  async #uploadLocalFile(file: LocalUppyFile<M, B>): Promise<void> {
+    try {
+      return await new Promise((resolve, reject) => {
+        // Create uploader (events are wired internally).
+        // S3Uploader detects resume state from file.s3Multipart internally.
+        const uploader = new S3Uploader<M, B>({
           uppy: this.uppy,
           s3Client: this.#s3Client,
           file,
-          key,
-          shouldUseMultipart: shouldMultipart,
-          resumeUploadId: resumeState?.uploadId,
+          key: this.#generateKey(file),
+          shouldUseMultipart: this.#shouldUseMultipart(file),
           getChunkSize: this.opts.getChunkSize,
           log: (...args) => this.uppy.log(...args),
-
-          onMultipartCreated: (uploadId, objectKey) => {
-            this.uppy.setFileState(file.id, {
-              s3Multipart: { uploadId, key: objectKey },
-            })
-          },
 
           onProgress: (bytesUploaded, bytesTotal) => {
             this.uppy.emit('upload-progress', file, {
@@ -732,22 +301,18 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
               body: {
                 location: result.location,
                 key: result.key,
-                bucket: result.bucket,
-              } as unknown as B,
+              } satisfies AwsBody as unknown as B,
               uploadURL: result.location,
             })
-            this.#cleanup(file.id)
             resolve()
           },
 
           onError: (err) => {
             this.uppy.emit('upload-error', file, err)
-            this.#cleanup(file.id)
             reject(err)
           },
 
           onAbort: () => {
-            this.#cleanup(file.id)
             resolve() // Normal completion, not an error
           },
         })
@@ -757,12 +322,11 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
 
         // Start the upload
         uploader.start()
-      } catch (err) {
-        // Cleanup on synchronous failure during setup
-        this.#cleanup(file.id)
-        reject(err)
-      }
-    })
+      })
+    } finally {
+      // Clean up uploader instance after upload completes or fails
+      delete this.#uploaders[file.id]
+    }
   }
 
   #shouldUseMultipart(file: UppyFile<M, B>): boolean {
@@ -774,22 +338,14 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
       return shouldUseMultipart
     }
     // Default: multipart for files > 100MB
-    return (file.size || 0) > 100 * MB
+    return (file.size ?? 0) > 100 * MB
   }
 
   #generateKey(file: UppyFile<M, B>): string {
-    if (this.opts.generateObjectKey) {
-      return this.opts.generateObjectKey(file)
-    }
-    // Default: {randomId}-{filename}
-    const randomId = crypto.randomUUID()
-    return `${randomId}-${file.name}`
-  }
-
-  #cleanup(fileId: string): void {
-    if (this.#uploaders[fileId]) {
-      delete this.#uploaders[fileId]
-    }
+    return (
+      this.opts.generateObjectKey?.(file) ??
+      `${crypto.randomUUID()}-${file.name}`
+    )
   }
 
   // --------------------------------------------------------------------------
@@ -801,28 +357,21 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
    * Tells Companion to use its server-side S3 upload path.
    */
   #getCompanionClientArgs(file: RemoteUppyFile<M, B>): Record<string, unknown> {
+    const allowedMetaFields = getAllowedMetaFields(
+      this.opts.allowedMetaFields,
+      file.meta,
+    )
     return {
-      ...file.remote?.body,
+      ...file.remote.body,
       protocol: 's3-multipart',
-      size: file.data?.size,
-      metadata: file.meta,
+      size: file.data.size,
+      metadata: Object.fromEntries(
+        allowedMetaFields.map((key) => [key, file.meta[key]]),
+      ),
     }
   }
 
-  /**
-   * Uploads a remote file (from a provider like Google Drive) via Companion.
-   *
-   * The flow is:
-   * 1. POST to Companion with protocol: 's3-multipart' and file metadata
-   * 2. Companion downloads the file from the provider and uploads it to S3
-   *    server-side using @aws-sdk/lib-storage
-   * 3. Progress/success/error are communicated back via WebSocket
-   *
-   * The browser never touches the file data — Companion handles everything.
-   */
   async #uploadRemoteFile(file: RemoteUppyFile<M, B>): Promise<void> {
-    // Companion's S3 path doesn't support pause/resume (unlike tus),
-    // so disable resumable uploads while remote files are uploading.
     this.#setResumableUploadsCapability(false)
 
     const controller = new AbortController()
@@ -851,5 +400,4 @@ export type { AwsS3Options as AwsS3MultipartOptions }
 export interface AwsBody extends Body {
   location: string
   key: string
-  bucket?: string
 }
