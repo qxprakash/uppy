@@ -17,6 +17,7 @@
       "!packages/**/{dist,lib}/**",
       "!node_modules",
       "!.svelte-kit",
+      "!.claude/**",
       "!packages/@uppy/components/src/input.css"
     ]
   },
@@ -35,6 +36,7 @@
       "!packages/**/{dist,lib}/**",
       "!node_modules",
       "!.svelte-kit",
+      "!.claude/**",
       "!packages/@uppy/components/src/input.css",
       "!**/*.vue",
       "!**/*.svelte"
