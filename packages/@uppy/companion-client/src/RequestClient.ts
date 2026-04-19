@@ -234,12 +234,22 @@ export default class RequestClient<M extends Meta, B extends Body> {
   }
 
   /**
-   * Remote uploading consists of two steps:
-   * 1. #requestSocketToken which starts the download/upload in companion and returns a unique token for the upload.
-   * Then companion will halt the upload until:
-   * 2. #awaitRemoteFileUpload is called, which will open/ensure a websocket connection towards companion, with the
-   * previously generated token provided. It returns a promise that will resolve/reject once the file has finished
-   * uploading or is otherwise done (failed, canceled)
+   * Remote uploading consists of two steps that must happen within the same
+   * queue slot:
+   * 1. #requestSocketToken — tells Companion to start the download/upload and
+   *    returns a token. Companion then instantiates its Uploader and waits up
+   *    to `clientSocketConnectTimeout` (default 60s) for the client websocket.
+   * 2. Opening the websocket to Companion using that token, which Companion
+   *    then uses to drive the download/upload and stream progress.
+   *
+   * Both steps happen inside a single queue slot in #awaitRemoteFileUpload so
+   * that Companion's Uploader is not created until the client is actually
+   * ready to connect. Otherwise, when more files are queued than the client's
+   * concurrency limit, queued files' server-side Uploaders would be
+   * instantiated eagerly and time out before getting a websocket (see
+   * `clientSocketConnectTimeout`), producing a "zombie" socket that later
+   * only unblocks when RequestClient's `socketActivityTimeoutMs` forces a
+   * retry.
    */
   async uploadRemoteFile(
     file: RemoteUppyFile<M, B>,
@@ -251,66 +261,20 @@ export default class RequestClient<M extends Meta, B extends Body> {
 
       return await pRetry(
         async () => {
-          // if we already have a serverToken, assume that we are resuming the existing server upload id
-          const existingServerToken = this.uppy.getFile(file.id)?.serverToken
-          if (existingServerToken != null) {
+          const currentFile = this.uppy.getFile(file.id) as
+            | RemoteUppyFile<M, B>
+            | undefined
+          if (!currentFile) return undefined // file has been removed
+
+          if (currentFile.serverToken != null) {
             this.uppy.log(
-              `Connecting to exiting websocket ${existingServerToken}`,
+              `Connecting to existing websocket ${currentFile.serverToken}`,
             )
-            return this.#awaitRemoteFileUpload({
-              file,
-              queue: getQueue(),
-              signal,
-            })
           }
 
-          const queueRequestSocketToken = getQueue().wrapPromiseFunction(
-            async (
-              ...args: [
-                {
-                  file: RemoteUppyFile<M, B>
-                  postBody: Record<string, unknown>
-                  signal: AbortSignal
-                },
-              ]
-            ) => {
-              try {
-                return await this.#requestSocketToken(...args)
-              } catch (outerErr) {
-                // throwing AbortError will cause p-retry to stop retrying
-                if (outerErr.isAuthError) throw new AbortError(outerErr)
-
-                if (outerErr.cause == null) throw outerErr
-                const err = outerErr.cause
-
-                const isRetryableHttpError = () =>
-                  [408, 409, 429, 418, 423].includes(err.statusCode) ||
-                  (err.statusCode >= 500 &&
-                    err.statusCode <= 599 &&
-                    ![501, 505].includes(err.statusCode))
-                if (err.name === 'HttpError' && !isRetryableHttpError())
-                  throw new AbortError(err)
-
-                // p-retry will retry most other errors,
-                // but it will not retry TypeError (except network error TypeErrors)
-                throw err
-              }
-            },
-            { priority: -1 },
-          )
-
-          const serverToken = await queueRequestSocketToken({
-            file,
-            postBody: reqBody,
-            signal,
-          }).abortOn(signal)
-
-          if (!this.uppy.getFile(file.id)) return undefined // has file since been removed?
-
-          this.uppy.setFileState(file.id, { serverToken })
-
           return this.#awaitRemoteFileUpload({
-            file: this.uppy.getFile(file.id) as RemoteUppyFile<M, B>, // re-fetching file because it might have changed in the meantime
+            file: currentFile,
+            reqBody,
             queue: getQueue(),
             signal,
           })
@@ -367,10 +331,12 @@ export default class RequestClient<M extends Meta, B extends Body> {
    */
   async #awaitRemoteFileUpload({
     file,
+    reqBody,
     queue,
     signal,
   }: {
     file: RemoteUppyFile<M, B>
+    reqBody: Record<string, unknown>
     queue: any
     signal: AbortSignal
   }): Promise<void> {
@@ -380,7 +346,9 @@ export default class RequestClient<M extends Meta, B extends Body> {
 
     try {
       return await new Promise((resolve, reject) => {
-        const token = file.serverToken
+        // `token` is mutable: if the file doesn't yet have a serverToken, we
+        // request one inside the queue slot (see #requestSocketToken below).
+        let token: string | null | undefined = file.serverToken
         const host = getSocketHost(file.remote!.companionUrl)
 
         let socket: WebSocket | undefined
@@ -444,6 +412,47 @@ export default class RequestClient<M extends Meta, B extends Body> {
           try {
             await queue
               .wrapPromiseFunction(async () => {
+                // If we don't have a serverToken yet, obtain one INSIDE the
+                // queue slot. Doing it here (rather than before acquiring the
+                // slot) ensures that Companion's Uploader and its
+                // `clientSocketConnectTimeout` (default 60s) only start once
+                // we're actually about to connect the websocket.
+                if (token == null) {
+                  try {
+                    token = await this.#requestSocketToken({
+                      file,
+                      postBody: reqBody,
+                      signal,
+                    })
+                  } catch (outerErr) {
+                    // throwing AbortError will cause p-retry to stop retrying
+                    if (outerErr.isAuthError) throw new AbortError(outerErr)
+
+                    if (outerErr.cause == null) throw outerErr
+                    const innerErr = outerErr.cause
+
+                    const isRetryableHttpError = () =>
+                      [408, 409, 429, 418, 423].includes(
+                        innerErr.statusCode,
+                      ) ||
+                      (innerErr.statusCode >= 500 &&
+                        innerErr.statusCode <= 599 &&
+                        ![501, 505].includes(innerErr.statusCode))
+                    if (
+                      innerErr.name === 'HttpError' &&
+                      !isRetryableHttpError()
+                    ) {
+                      throw new AbortError(innerErr)
+                    }
+
+                    // p-retry will retry most other errors,
+                    // but it will not retry TypeError (except network error TypeErrors)
+                    throw innerErr
+                  }
+                  if (!this.uppy.getFile(file.id)) return // file was removed while requesting token
+                  this.uppy.setFileState(file.id, { serverToken: token })
+                }
+
                 const reconnectWebsocket = async () =>
                   new Promise((_, rejectSocket) => {
                     socket = new WebSocket(`${host}/api/${token}`)
