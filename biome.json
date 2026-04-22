@@ -16,6 +16,7 @@
       "private/**",
       "!packages/**/{dist,lib}/**",
       "!node_modules",
+      "!.claude/**",
       "!.svelte-kit",
       "!packages/@uppy/components/src/input.css"
     ]
@@ -32,6 +33,7 @@
       "examples/**",
       "scripts/**",
       "private/**",
+      "!.claude/**",
       "!packages/**/{dist,lib}/**",
       "!node_modules",
       "!.svelte-kit",

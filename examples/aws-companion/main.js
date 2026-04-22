@@ -24,4 +24,5 @@ uppy.use(Dashboard, {
 })
 uppy.use(AwsS3, {
   companionEndpoint: 'http://localhost:3020',
+  limit: 2,
 })

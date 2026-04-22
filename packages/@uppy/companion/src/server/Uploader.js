@@ -417,17 +417,26 @@ export default class Uploader {
 
   async awaitReady(timeout) {
     logger.debug(
-      'waiting for socket connection',
+      `waiting for socket connection${timeout ? ` (timeout=${timeout}ms)` : ''}`,
       'uploader.socket.wait',
       this.shortToken,
     )
 
     const eventName = `connection:${this.token}`
-    await once(
-      emitter(),
-      eventName,
-      timeout && { signal: AbortSignal.timeout(timeout) },
-    )
+    try {
+      await once(
+        emitter(),
+        eventName,
+        timeout && { signal: AbortSignal.timeout(timeout) },
+      )
+    } catch (err) {
+      logger.warn(
+        `socket wait failed${timeout ? ` after ${timeout}ms` : ''}: ${err.message}`,
+        'uploader.socket.wait.timeout',
+        this.shortToken,
+      )
+      throw err
+    }
 
     logger.debug(
       'socket connection received',

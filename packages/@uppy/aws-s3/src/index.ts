@@ -372,6 +372,10 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
 
     const controller = new AbortController()
 
+    this.uppy.log(
+      `[AwsS3] starting remote upload for ${file.id} (${file.name}); queue concurrency=${this.#queue.concurrency} running=${this.#queue.running} pending=${this.#queue.pending}`,
+    )
+
     const removedHandler = (removedFile: UppyFile<M, B>) => {
       if (removedFile.id === file.id) controller.abort()
     }
@@ -384,6 +388,9 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
           signal: controller.signal,
           getQueue: () => this.#queue,
         })
+      this.uppy.log(
+        `[AwsS3] remote upload completed for ${file.id} (${file.name}); queue concurrency=${this.#queue.concurrency} running=${this.#queue.running} pending=${this.#queue.pending}`,
+      )
     } finally {
       this.uppy.off('file-removed', removedHandler)
     }

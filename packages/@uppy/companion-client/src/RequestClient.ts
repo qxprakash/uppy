@@ -102,6 +102,26 @@ function emitSocketProgress<M extends Meta, B extends Body>(
   }
 }
 
+function describeRemoteFile(file: RemoteUppyFile<any, any>): string {
+  return `${file.id} (${file.name ?? 'unnamed'})`
+}
+
+function describeQueue(queue: any): string {
+  if (queue == null) return 'queue=unknown'
+
+  const parts = [
+    `concurrency=${String(queue.concurrency ?? 'unknown')}`,
+    `running=${String(queue.running ?? 'unknown')}`,
+    `pending=${String(queue.pending ?? 'unknown')}`,
+  ]
+
+  if ('isPaused' in queue) {
+    parts.push(`paused=${String(queue.isPaused)}`)
+  }
+
+  return parts.join(' ')
+}
+
 export default class RequestClient<M extends Meta, B extends Body> {
   static VERSION = packageJson.version
 
@@ -234,12 +254,13 @@ export default class RequestClient<M extends Meta, B extends Body> {
   }
 
   /**
-   * Remote uploading consists of two steps:
-   * 1. #requestSocketToken which starts the download/upload in companion and returns a unique token for the upload.
-   * Then companion will halt the upload until:
-   * 2. #awaitRemoteFileUpload is called, which will open/ensure a websocket connection towards companion, with the
-   * previously generated token provided. It returns a promise that will resolve/reject once the file has finished
-   * uploading or is otherwise done (failed, canceled)
+   * Remote uploading uses a single queue admission per attempt:
+   * 1. Acquire one queue slot.
+   * 2. Reuse an existing serverToken or request a new one from Companion.
+   * 3. Open/maintain the websocket and wait for Companion to finish.
+   *
+   * This prevents socket tokens from being created long before their websocket
+   * session is admitted by the queue.
    */
   async uploadRemoteFile(
     file: RemoteUppyFile<M, B>,
@@ -248,72 +269,79 @@ export default class RequestClient<M extends Meta, B extends Body> {
   ): Promise<void> {
     try {
       const { signal, getQueue } = options || {}
+      const queue = getQueue()
+
+      this.uppy.log(
+        `[CompanionClient] remote upload requested for ${describeRemoteFile(
+          file,
+        )}; ${describeQueue(queue)}`,
+      )
 
       return await pRetry(
         async () => {
-          // if we already have a serverToken, assume that we are resuming the existing server upload id
-          const existingServerToken = this.uppy.getFile(file.id)?.serverToken
-          if (existingServerToken != null) {
-            this.uppy.log(
-              `Connecting to exiting websocket ${existingServerToken}`,
-            )
-            return this.#awaitRemoteFileUpload({
+          this.uppy.log(
+            `[CompanionClient] queueing remote upload attempt for ${describeRemoteFile(
               file,
-              queue: getQueue(),
-              signal,
-            })
-          }
-
-          const queueRequestSocketToken = getQueue().wrapPromiseFunction(
-            async (
-              ...args: [
-                {
-                  file: RemoteUppyFile<M, B>
-                  postBody: Record<string, unknown>
-                  signal: AbortSignal
-                },
-              ]
-            ) => {
-              try {
-                return await this.#requestSocketToken(...args)
-              } catch (outerErr) {
-                // throwing AbortError will cause p-retry to stop retrying
-                if (outerErr.isAuthError) throw new AbortError(outerErr)
-
-                if (outerErr.cause == null) throw outerErr
-                const err = outerErr.cause
-
-                const isRetryableHttpError = () =>
-                  [408, 409, 429, 418, 423].includes(err.statusCode) ||
-                  (err.statusCode >= 500 &&
-                    err.statusCode <= 599 &&
-                    ![501, 505].includes(err.statusCode))
-                if (err.name === 'HttpError' && !isRetryableHttpError())
-                  throw new AbortError(err)
-
-                // p-retry will retry most other errors,
-                // but it will not retry TypeError (except network error TypeErrors)
-                throw err
-              }
-            },
-            { priority: -1 },
+            )}; ${describeQueue(queue)}`,
           )
 
-          const serverToken = await queueRequestSocketToken({
-            file,
-            postBody: reqBody,
-            signal,
-          }).abortOn(signal)
+          const queueRemoteUploadAttempt = queue.wrapPromiseFunction(
+            async () => {
+              const currentFile = this.uppy.getFile(file.id) as
+                | RemoteUppyFile<M, B>
+                | undefined
+              if (currentFile == null) return undefined
 
-          if (!this.uppy.getFile(file.id)) return undefined // has file since been removed?
+              this.uppy.log(
+                `[CompanionClient] dequeued remote upload attempt for ${describeRemoteFile(
+                  currentFile,
+                )}; ${describeQueue(queue)}`,
+              )
 
-          this.uppy.setFileState(file.id, { serverToken })
+              let serverToken = currentFile.serverToken
 
-          return this.#awaitRemoteFileUpload({
-            file: this.uppy.getFile(file.id) as RemoteUppyFile<M, B>, // re-fetching file because it might have changed in the meantime
-            queue: getQueue(),
-            signal,
-          })
+              if (serverToken != null) {
+                this.uppy.log(
+                  `[CompanionClient] resuming websocket for ${describeRemoteFile(
+                    currentFile,
+                  )} using token ${serverToken}; ${describeQueue(queue)}`,
+                )
+              } else {
+                this.uppy.log(
+                  `[CompanionClient] requesting socket token for ${describeRemoteFile(
+                    currentFile,
+                  )}; ${describeQueue(queue)}`,
+                )
+
+                serverToken = await this.#requestSocketTokenWithRetryStrategy({
+                  file: currentFile,
+                  postBody: reqBody,
+                  signal,
+                })
+
+                if (!this.uppy.getFile(file.id)) return undefined
+
+                this.uppy.setFileState(file.id, { serverToken })
+                this.uppy.log(
+                  `[CompanionClient] received socket token ${serverToken} for ${describeRemoteFile(
+                    currentFile,
+                  )}; ${describeQueue(queue)}`,
+                )
+              }
+
+              const latestFile = this.uppy.getFile(file.id) as
+                | RemoteUppyFile<M, B>
+                | undefined
+              if (latestFile == null) return undefined
+
+              return this.#awaitRemoteFileUpload({
+                file: latestFile,
+                signal,
+              })
+            },
+          )
+
+          return queueRemoteUploadAttempt().abortOn(signal)
         },
         {
           retries: retryCount,
@@ -360,6 +388,39 @@ export default class RequestClient<M extends Meta, B extends Body> {
     return res.token
   }
 
+  #requestSocketTokenWithRetryStrategy = async ({
+    file,
+    postBody,
+    signal,
+  }: {
+    file: RemoteUppyFile<M, B>
+    postBody: Record<string, unknown>
+    signal: AbortSignal
+  }): Promise<string> => {
+    try {
+      return await this.#requestSocketToken({ file, postBody, signal })
+    } catch (outerErr) {
+      // throwing AbortError will cause p-retry to stop retrying
+      if (outerErr.isAuthError) throw new AbortError(outerErr)
+
+      if (outerErr.cause == null) throw outerErr
+      const err = outerErr.cause
+
+      const isRetryableHttpError = () =>
+        [408, 409, 429, 418, 423].includes(err.statusCode) ||
+        (err.statusCode >= 500 &&
+          err.statusCode <= 599 &&
+          ![501, 505].includes(err.statusCode))
+      if (err.name === 'HttpError' && !isRetryableHttpError()) {
+        throw new AbortError(err)
+      }
+
+      // p-retry will retry most other errors,
+      // but it will not retry TypeError (except network error TypeErrors)
+      throw err
+    }
+  }
+
   /**
    * This method will ensure a websocket for the specified file and returns a promise that resolves
    * when the file has finished downloading, or rejects if it fails.
@@ -367,11 +428,9 @@ export default class RequestClient<M extends Meta, B extends Body> {
    */
   async #awaitRemoteFileUpload({
     file,
-    queue,
     signal,
   }: {
     file: RemoteUppyFile<M, B>
-    queue: any
     signal: AbortSignal
   }): Promise<void> {
     let removeEventHandlers: () => void
@@ -382,6 +441,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
       return await new Promise((resolve, reject) => {
         const token = file.serverToken
         const host = getSocketHost(file.remote!.companionUrl)
+        const requestClient = this
 
         let socket: WebSocket | undefined
         let socketAbortController: AbortController
@@ -420,6 +480,12 @@ export default class RequestClient<M extends Meta, B extends Body> {
           socketAbortController = new AbortController()
 
           const onFatalError = (err: Error) => {
+            this.uppy.log(
+              `[CompanionClient] fatal websocket error for ${describeRemoteFile(
+                file,
+              )} with token ${String(token)}: ${err.message}`,
+              'warning',
+            )
             // Remove the serverToken so that a new one will be created for the retry.
             this.uppy.setFileState(file.id, { serverToken: null })
             socketAbortController?.abort?.()
@@ -430,126 +496,134 @@ export default class RequestClient<M extends Meta, B extends Body> {
           function resetActivityTimeout() {
             clearTimeout(activityTimeout)
             if (isPaused) return
-            activityTimeout = setTimeout(
-              () =>
-                onFatalError(
-                  new Error(
-                    'Timeout waiting for message from Companion socket',
-                  ),
-                ),
-              socketActivityTimeoutMs,
-            )
+            activityTimeout = setTimeout(() => {
+              requestClient.uppy.log(
+                `[CompanionClient] websocket activity timeout for ${describeRemoteFile(
+                  file,
+                )} with token ${String(token)} after ${socketActivityTimeoutMs}ms`,
+                'warning',
+              )
+              onFatalError(
+                new Error('Timeout waiting for message from Companion socket'),
+              )
+            }, socketActivityTimeoutMs)
           }
 
           try {
-            await queue
-              .wrapPromiseFunction(async () => {
-                const reconnectWebsocket = async () =>
-                  new Promise((_, rejectSocket) => {
-                    socket = new WebSocket(`${host}/api/${token}`)
+            const reconnectWebsocket = async () =>
+              new Promise((_, rejectSocket) => {
+                this.uppy.log(
+                  `[CompanionClient] opening websocket ${file.id} -> ${host}/api/${token}`,
+                )
+                socket = new WebSocket(`${host}/api/${token}`)
 
-                    resetActivityTimeout()
+                resetActivityTimeout()
 
-                    socket.addEventListener('close', () => {
-                      socket = undefined
-                      rejectSocket(new Error('Socket closed unexpectedly'))
-                    })
-
-                    socket.addEventListener('error', (error) => {
-                      this.uppy.log(
-                        `Companion socket error ${JSON.stringify(
-                          error,
-                        )}, closing socket`,
-                        'warning',
-                      )
-                      socket?.close() // will 'close' event to be emitted
-                    })
-
-                    socket.addEventListener('open', () => {
-                      sendState()
-                    })
-
-                    socket.addEventListener('message', (e) => {
-                      resetActivityTimeout()
-
-                      try {
-                        const { action, payload } = JSON.parse(e.data)
-
-                        switch (action) {
-                          case 'progress': {
-                            emitSocketProgress(
-                              this,
-                              payload,
-                              this.uppy.getFile(file.id),
-                            )
-                            break
-                          }
-                          case 'success': {
-                            // payload.response is sent from companion for xhr-upload (aka uploadMultipart in companion) and
-                            // s3 multipart (aka uploadS3Multipart)
-                            // but not for tus/transloadit (aka uploadTus)
-                            // responseText is a string which may or may not be in JSON format
-                            // this means that an upload destination of xhr or s3 multipart MUST respond with valid JSON
-                            // to companion, or the JSON.parse will crash
-                            const text = payload.response?.responseText
-
-                            this.uppy.emit(
-                              'upload-success',
-                              this.uppy.getFile(file.id),
-                              {
-                                uploadURL: payload.url,
-                                status: payload.response?.status ?? 200,
-                                body: text
-                                  ? (JSON.parse(text) as B)
-                                  : undefined,
-                              },
-                            )
-                            socketAbortController?.abort?.()
-                            resolve()
-                            break
-                          }
-                          case 'error': {
-                            const { message } = payload.error
-                            throw Object.assign(new Error(message), {
-                              cause: payload.error,
-                            })
-                          }
-                          default:
-                            this.uppy.log(
-                              `Companion socket unknown action ${action}`,
-                              'warning',
-                            )
-                        }
-                      } catch (err) {
-                        onFatalError(err)
-                      }
-                    })
-
-                    const closeSocket = () => {
-                      this.uppy.log(`Closing socket ${file.id}`)
-                      clearTimeout(activityTimeout)
-                      if (socket) socket.close()
-                      socket = undefined
-                    }
-
-                    socketAbortController.signal.addEventListener(
-                      'abort',
-                      () => {
-                        closeSocket()
-                      },
-                    )
-                  })
-
-                await pRetry(reconnectWebsocket, {
-                  retries: retryCount,
-                  signal: socketAbortController.signal,
-                  onFailedAttempt: () => {
-                    if (socketAbortController.signal.aborted) return // don't log in this case
-                    this.uppy.log(`Retrying websocket ${file.id}`)
-                  },
+                socket.addEventListener('close', () => {
+                  socket = undefined
+                  rejectSocket(new Error('Socket closed unexpectedly'))
                 })
-              })()
-              .abortOn(socketAbortController.signal)
+
+                socket.addEventListener('error', (error) => {
+                  this.uppy.log(
+                    `Companion socket error ${JSON.stringify(
+                      error,
+                    )}, closing socket`,
+                    'warning',
+                  )
+                  socket?.close() // will 'close' event to be emitted
+                })
+
+                socket.addEventListener('open', () => {
+                  this.uppy.log(
+                    `[CompanionClient] websocket open for ${describeRemoteFile(
+                      file,
+                    )} with token ${String(token)}`,
+                  )
+                  sendState()
+                })
+
+                socket.addEventListener('message', (e) => {
+                  resetActivityTimeout()
+
+                  try {
+                    const { action, payload } = JSON.parse(e.data)
+
+                    switch (action) {
+                      case 'progress': {
+                        emitSocketProgress(
+                          this,
+                          payload,
+                          this.uppy.getFile(file.id),
+                        )
+                        break
+                      }
+                      case 'success': {
+                        // payload.response is sent from companion for xhr-upload (aka uploadMultipart in companion) and
+                        // s3 multipart (aka uploadS3Multipart)
+                        // but not for tus/transloadit (aka uploadTus)
+                        // responseText is a string which may or may not be in JSON format
+                        // this means that an upload destination of xhr or s3 multipart MUST respond with valid JSON
+                        // to companion, or the JSON.parse will crash
+                        const text = payload.response?.responseText
+
+                        this.uppy.emit(
+                          'upload-success',
+                          this.uppy.getFile(file.id),
+                          {
+                            uploadURL: payload.url,
+                            status: payload.response?.status ?? 200,
+                            body: text
+                              ? (JSON.parse(text) as B)
+                              : undefined,
+                          },
+                        )
+                        this.uppy.log(
+                          `[CompanionClient] websocket success for ${describeRemoteFile(
+                            file,
+                          )} with token ${String(token)}`,
+                        )
+                        socketAbortController?.abort?.()
+                        resolve()
+                        break
+                      }
+                      case 'error': {
+                        const { message } = payload.error
+                        throw Object.assign(new Error(message), {
+                          cause: payload.error,
+                        })
+                      }
+                      default:
+                        this.uppy.log(
+                          `Companion socket unknown action ${action}`,
+                          'warning',
+                        )
+                    }
+                  } catch (err) {
+                    onFatalError(err)
+                  }
+                })
+
+                const closeSocket = () => {
+                  this.uppy.log(`Closing socket ${file.id}`)
+                  clearTimeout(activityTimeout)
+                  if (socket) socket.close()
+                  socket = undefined
+                }
+
+                socketAbortController.signal.addEventListener('abort', () => {
+                  closeSocket()
+                })
+              })
+
+            await pRetry(reconnectWebsocket, {
+              retries: retryCount,
+              signal: socketAbortController.signal,
+              onFailedAttempt: () => {
+                if (socketAbortController.signal.aborted) return // don't log in this case
+                this.uppy.log(`Retrying websocket ${file.id}`)
+              },
+            })
           } catch (err) {
             if (socketAbortController.signal.aborted) return
             onFatalError(err)
@@ -566,6 +640,11 @@ export default class RequestClient<M extends Meta, B extends Body> {
         const onFileRemove = (targetFile: UppyFile<M, B>) => {
           if (!capabilities.individualCancellation) return
           if (targetFile.id !== file.id) return
+          this.uppy.log(
+            `[CompanionClient] removing remote upload for ${describeRemoteFile(
+              file,
+            )} with token ${String(token)}`,
+          )
           socketSend('cancel')
           socketAbortController?.abort?.()
           this.uppy.log(`upload ${file.id} was removed`)
@@ -573,6 +652,11 @@ export default class RequestClient<M extends Meta, B extends Body> {
         }
 
         const onCancelAll = () => {
+          this.uppy.log(
+            `[CompanionClient] cancel-all for ${describeRemoteFile(
+              file,
+            )} with token ${String(token)}`,
+          )
           socketSend('cancel')
           socketAbortController?.abort?.()
           this.uppy.log(`upload ${file.id} was canceled`)
