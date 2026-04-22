@@ -265,7 +265,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
               if (serverToken != null) {
                 this.uppy.log(`Connecting to exiting websocket ${serverToken}`)
               } else {
-                serverToken = await this.#requestSocketTokenWithRetryStrategy({
+                serverToken = await this.#requestSocketTokenWithRetry({
                   file: currentFile,
                   postBody: reqBody,
                   signal,
@@ -335,7 +335,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
     return res.token
   }
 
-  #requestSocketTokenWithRetryStrategy = async ({
+  #requestSocketTokenWithRetry = async ({
     file,
     postBody,
     signal,
@@ -499,9 +499,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
                           {
                             uploadURL: payload.url,
                             status: payload.response?.status ?? 200,
-                            body: text
-                              ? (JSON.parse(text) as B)
-                              : undefined,
+                            body: text ? (JSON.parse(text) as B) : undefined,
                           },
                         )
                         socketAbortController?.abort?.()
