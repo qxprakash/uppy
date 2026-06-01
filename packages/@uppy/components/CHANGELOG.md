@@ -1,5 +1,20 @@
 # @uppy/components
 
+## 2.0.0
+
+### Major Changes
+
+- 12de077: Remove @uppy/instagram references from all the packages
+
+### Patch Changes
+
+- c3c7cef: Bump shared runtime dependencies (preact, nanoid, lodash, classnames, shallow-equal, pretty-bytes, p-queue, tus-js-client, @transloadit/types @transloadit/prettier-bytes v1, is-mobile, exifr, compressorjs, rxjs, tslib). Also includes type-only fixes in `@uppy/companion`'s `jwt.ts` and `request.ts` to track `@types/jsonwebtoken` v9 and `@types/node`.
+- Updated dependencies [c3c7cef]
+  - @uppy/screen-capture@5.1.1
+  - @uppy/image-editor@4.2.1
+  - @uppy/webcam@5.1.1
+  - @uppy/core@5.2.1
+
 ## 1.2.0
 
 ### Minor Changes

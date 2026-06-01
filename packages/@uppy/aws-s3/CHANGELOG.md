@@ -1,5 +1,18 @@
 # @uppy/aws-s3
 
+## 5.1.1
+
+### Patch Changes
+
+- c3c7cef: Bump shared runtime dependencies (preact, nanoid, lodash, classnames, shallow-equal, pretty-bytes, p-queue, tus-js-client, @transloadit/types @transloadit/prettier-bytes v1, is-mobile, exifr, compressorjs, rxjs, tslib). Also includes type-only fixes in `@uppy/companion`'s `jwt.ts` and `request.ts` to track `@types/jsonwebtoken` v9 and `@types/node`.
+- d9d44ce: Improve type
+- Updated dependencies [c3c7cef]
+- Updated dependencies [7ac2623]
+- Updated dependencies [ad4050b]
+  - @uppy/companion-client@6.0.0
+  - @uppy/utils@7.2.1
+  - @uppy/core@5.2.1
+
 ## 5.1.0
 
 ### Minor Changes

@@ -1,5 +1,17 @@
 # @uppy/dashboard
 
+## 5.1.2
+
+### Patch Changes
+
+- c3c7cef: Bump shared runtime dependencies (preact, nanoid, lodash, classnames, shallow-equal, pretty-bytes, p-queue, tus-js-client, @transloadit/types @transloadit/prettier-bytes v1, is-mobile, exifr, compressorjs, rxjs, tslib). Also includes type-only fixes in `@uppy/companion`'s `jwt.ts` and `request.ts` to track `@types/jsonwebtoken` v9 and `@types/node`.
+- b9253f7: fix "My Device" button in dashboard, it now respects the fileManagerSelectionType.
+- Updated dependencies [c3c7cef]
+  - @uppy/thumbnail-generator@5.1.1
+  - @uppy/provider-views@5.2.3
+  - @uppy/utils@7.2.1
+  - @uppy/core@5.2.1
+
 ## 5.1.1
 
 ### Patch Changes

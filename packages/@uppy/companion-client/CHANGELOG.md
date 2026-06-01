@@ -1,5 +1,21 @@
 # @uppy/companion-client
 
+## 6.0.0
+
+### Major Changes
+
+- ad4050b: Send token using websocket instead of window.opener.
+  Breaking in `@uppy/companion-client` because it needs newest version of Companion in order to work.
+  Breaking in `@uppy/companion` because `companion.socket()` now requires `companionOptions` to be passed as the second argument.
+
+### Patch Changes
+
+- c3c7cef: Bump shared runtime dependencies (preact, nanoid, lodash, classnames, shallow-equal, pretty-bytes, p-queue, tus-js-client, @transloadit/types @transloadit/prettier-bytes v1, is-mobile, exifr, compressorjs, rxjs, tslib). Also includes type-only fixes in `@uppy/companion`'s `jwt.ts` and `request.ts` to track `@types/jsonwebtoken` v9 and `@types/node`.
+- 7ac2623: uploadRemoteFile() now queues token request and websocket request as a single job in the request queue.
+- Updated dependencies [c3c7cef]
+  - @uppy/utils@7.2.1
+  - @uppy/core@5.2.1
+
 ## 5.1.1
 
 ### Patch Changes
