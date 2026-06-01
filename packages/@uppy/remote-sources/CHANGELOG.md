@@ -1,5 +1,23 @@
 # @uppy/remote-sources
 
+## 3.1.1
+
+### Patch Changes
+
+- c3c7cef: Bump shared runtime dependencies (preact, nanoid, lodash, classnames, shallow-equal, pretty-bytes, p-queue, tus-js-client, @transloadit/types @transloadit/prettier-bytes v1, is-mobile, exifr, compressorjs, rxjs, tslib). Also includes type-only fixes in `@uppy/companion`'s `jwt.ts` and `request.ts` to track `@types/jsonwebtoken` v9 and `@types/node`.
+- Updated dependencies [c3c7cef]
+- Updated dependencies [b9253f7]
+  - @uppy/google-drive@5.1.1
+  - @uppy/dashboard@5.1.2
+  - @uppy/facebook@5.1.1
+  - @uppy/onedrive@5.1.1
+  - @uppy/unsplash@5.1.1
+  - @uppy/dropbox@5.1.1
+  - @uppy/core@5.2.1
+  - @uppy/zoom@4.1.1
+  - @uppy/box@4.1.1
+  - @uppy/url@5.1.1
+
 ## 3.1.0
 
 ### Minor Changes

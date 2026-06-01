@@ -1,5 +1,56 @@
 # uppy
 
+## 6.0.0
+
+### Major Changes
+
+- 12de077: Remove @uppy/instagram references from all the packages
+
+### Patch Changes
+
+- c3c7cef: Bump shared runtime dependencies (preact, nanoid, lodash, classnames, shallow-equal, pretty-bytes, p-queue, tus-js-client, @transloadit/types @transloadit/prettier-bytes v1, is-mobile, exifr, compressorjs, rxjs, tslib). Also includes type-only fixes in `@uppy/companion`'s `jwt.ts` and `request.ts` to track `@types/jsonwebtoken` v9 and `@types/node`.
+- Updated dependencies [c3c7cef]
+- Updated dependencies [b9253f7]
+- Updated dependencies [12de077]
+- Updated dependencies [d9d44ce]
+- Updated dependencies [7ac2623]
+- Updated dependencies [57f8daf]
+- Updated dependencies [ad4050b]
+- Updated dependencies [ca916f6]
+  - @uppy/google-photos-picker@1.1.1
+  - @uppy/google-drive-picker@1.1.2
+  - @uppy/thumbnail-generator@5.1.1
+  - @uppy/companion-client@6.0.0
+  - @uppy/golden-retriever@5.2.2
+  - @uppy/image-generator@1.0.1
+  - @uppy/provider-views@5.2.3
+  - @uppy/remote-sources@3.1.1
+  - @uppy/screen-capture@5.1.1
+  - @uppy/store-default@5.0.1
+  - @uppy/google-drive@5.1.1
+  - @uppy/image-editor@4.2.1
+  - @uppy/transloadit@5.6.0
+  - @uppy/compressor@3.1.1
+  - @uppy/status-bar@5.1.1
+  - @uppy/xhr-upload@5.2.1
+  - @uppy/dashboard@5.1.2
+  - @uppy/drag-drop@5.1.1
+  - @uppy/facebook@5.1.1
+  - @uppy/onedrive@5.1.1
+  - @uppy/unsplash@5.1.1
+  - @uppy/dropbox@5.1.1
+  - @uppy/locales@5.2.0
+  - @uppy/aws-s3@5.1.1
+  - @uppy/webcam@5.1.1
+  - @uppy/webdav@1.1.2
+  - @uppy/audio@3.1.1
+  - @uppy/core@5.2.1
+  - @uppy/form@5.1.1
+  - @uppy/zoom@4.1.1
+  - @uppy/box@4.1.1
+  - @uppy/tus@5.1.2
+  - @uppy/url@5.1.1
+
 ## 5.2.4
 
 ### Patch Changes
