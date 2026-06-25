@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GoldenRetriever × Transloadit restore UI (issue #6017)</title>
+  </head>
+  <body>
+    <style>
+      html {
+        background: #f1f1f1;
+      }
+      main {
+        padding: 20px;
+        font: 12pt sans-serif;
+        background: white;
+        width: 800px;
+        margin: auto;
+      }
+    </style>
+    <main>
+      <h1>Restore UI while encoding (#6017)</h1>
+      <ol>
+        <li>Add a file and click Upload.</li>
+        <li>
+          Once the bytes are uploaded and the assembly is <em>encoding</em>,
+          reload the page.
+        </li>
+        <li>
+          <strong>Expected:</strong> the status bar shows a processing indicator
+          (not a dead “press Upload to resume” button), then flips to Complete.
+        </li>
+      </ol>
+      <div id="dashboard"></div>
+    </main>
+    <script type="module" src="/gr.js"></script>
+  </body>
+</html>

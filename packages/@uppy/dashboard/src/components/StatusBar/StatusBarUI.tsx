@@ -139,7 +139,11 @@ export default function StatusBarUI<M extends Meta, B extends Body>({
     newFiles &&
     ((!isUploadInProgress && !isAllPaused) || recoveredState) &&
     allowNewUpload &&
-    !hideUploadButton
+    !hideUploadButton &&
+    // #6017: a restored assembly that's already fully uploaded is reconnecting
+    // and encoding in the background — nothing to confirm/resume, so hide the
+    // Upload button (getUploadingState returns POSTPROCESSING in that case).
+    uploadState !== STATE_POSTPROCESSING
 
   const showCancelBtn =
     !hideCancelButton &&

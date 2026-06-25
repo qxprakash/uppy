@@ -36,7 +36,20 @@ function getUploadingState(
   }
 
   if (recoveredState) {
-    return statusBarStates.STATE_WAITING
+    // #6017: if every recovered file was already uploaded before the reload
+    // (e.g. a Transloadit assembly is still encoding in the background), the
+    // bytes are already on the server — don't show the "press Upload to
+    // resume" prompt, show processing instead. Any not-yet-uploaded file still
+    // needs a real resume, so keep waiting.
+    // ponytail: file progress is the signal; if a Transloadit-specific case
+    // ever needs finer detail, read the plugin's `assemblyStatus.ok`.
+    const recovered = Object.values(files)
+    const allUploaded =
+      recovered.length > 0 &&
+      recovered.every((file) => file.progress.uploadComplete)
+    return allUploaded
+      ? statusBarStates.STATE_POSTPROCESSING
+      : statusBarStates.STATE_WAITING
   }
 
   let state: StatusBarUIProps<any, any>['uploadState'] =
