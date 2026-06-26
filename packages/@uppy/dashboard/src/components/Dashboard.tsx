@@ -177,6 +177,18 @@ export default function Dashboard<M extends Meta, B extends Body>(
         .length
     : 0
 
+  // #6017: when every recovered file is already uploaded (e.g. a Transloadit
+  // assembly is still encoding in the background) there's nothing to resume, so
+  // hide the "you can now resume the upload" banner — matching the hidden
+  // Upload button in the status bar. A partial/ghost recovery still needs a
+  // real resume, so the banner stays for those.
+  const allRecoveredFilesUploaded =
+    numberOfFilesForRecovery != null &&
+    numberOfFilesForRecovery > 0 &&
+    Object.values(props.files ?? {}).every(
+      (file) => file.progress.uploadComplete,
+    )
+
   const renderRestoredText = () => {
     if (numberOfGhosts > 0) {
       return props.i18n('recoveredXFiles', {
@@ -242,33 +254,35 @@ export default function Dashboard<M extends Meta, B extends Body>(
 
           {showFileList && <PanelTopBar {...props} />}
 
-          {numberOfFilesForRecovery != null && numberOfFilesForRecovery > 0 && (
-            <div className="uppy-Dashboard-serviceMsg">
-              <svg
-                className="uppy-Dashboard-serviceMsg-icon"
-                aria-hidden="true"
-                focusable="false"
-                width="21"
-                height="16"
-                viewBox="0 0 24 19"
-              >
-                <g transform="translate(0 -1)" fill="none" fillRule="evenodd">
-                  <path
-                    d="M12.857 1.43l10.234 17.056A1 1 0 0122.234 20H1.766a1 1 0 01-.857-1.514L11.143 1.429a1 1 0 011.714 0z"
-                    fill="#FFD300"
-                  />
-                  <path fill="#000" d="M11 6h2l-.3 8h-1.4z" />
-                  <circle fill="#000" cx="12" cy="17" r="1" />
-                </g>
-              </svg>
-              <strong className="uppy-Dashboard-serviceMsg-title">
-                {props.i18n('sessionRestored')}
-              </strong>
-              <div className="uppy-Dashboard-serviceMsg-text">
-                {renderRestoredText()}
+          {numberOfFilesForRecovery != null &&
+            numberOfFilesForRecovery > 0 &&
+            !allRecoveredFilesUploaded && (
+              <div className="uppy-Dashboard-serviceMsg">
+                <svg
+                  className="uppy-Dashboard-serviceMsg-icon"
+                  aria-hidden="true"
+                  focusable="false"
+                  width="21"
+                  height="16"
+                  viewBox="0 0 24 19"
+                >
+                  <g transform="translate(0 -1)" fill="none" fillRule="evenodd">
+                    <path
+                      d="M12.857 1.43l10.234 17.056A1 1 0 0122.234 20H1.766a1 1 0 01-.857-1.514L11.143 1.429a1 1 0 011.714 0z"
+                      fill="#FFD300"
+                    />
+                    <path fill="#000" d="M11 6h2l-.3 8h-1.4z" />
+                    <circle fill="#000" cx="12" cy="17" r="1" />
+                  </g>
+                </svg>
+                <strong className="uppy-Dashboard-serviceMsg-title">
+                  {props.i18n('sessionRestored')}
+                </strong>
+                <div className="uppy-Dashboard-serviceMsg-text">
+                  {renderRestoredText()}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {showFileList ? (
             <FileList
