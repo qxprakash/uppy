@@ -331,6 +331,13 @@ export default class ThumbnailGenerator<
   }
 
   addToQueue(fileID: string): void {
+    // Dashboard's FileItem re-emits `thumbnail:request` on every render (see its
+    // componentDidUpdate). For a file whose preview never resolves — e.g. a large
+    // image that fails to rasterize — that would push the same id unboundedly and
+    // spin processQueue, each pass allocating a full-size Image + canvas (observed
+    // as multi-GB growth during a Transloadit encode + Golden Retriever restore).
+    // Dedup keeps the queue to one entry per file.
+    if (this.queue.includes(fileID)) return
     this.queue.push(fileID)
     if (this.queueProcessing === false) {
       this.processQueue()

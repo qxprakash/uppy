@@ -329,17 +329,59 @@ export default class GoldenRetriever<
     }
 
     if (nextState.files !== prevState.files) {
+      // #6017: retire a recovered upload's lingering state once it reaches a
+      // TERMINAL state — the same measure the UI uses to offer the "Done"
+      // button. `getObjectOfFilesPerState().isAllComplete` keys off
+      // `uploadComplete` + "no processing flag", and ignores per-file errors;
+      // we mirror that exactly (note: NOT `progress.complete`, and NOT `!error`).
+      //
+      // A recovered Transloadit upload finishes out-of-band: it never runs
+      // through uppy.upload(), so core's `currentUploads` batch is never
+      // retired. So once every file is uploaded and no longer processing —
+      // whether it succeeded or the assembly errored (an errored assembly comes
+      // back as uploadComplete + complete + error via the AssemblyWatcher) — the
+      // batch is a zombie that makes clear()/removeFiles throw "does not allow
+      // removing files during an upload" (hit by the status bar's Done button,
+      // the file remove "×", and "Add more"). Retire it so the terminal UI
+      // (Done / error) actually works.
+      //
+      // Gated on `recoveredState` so a normal in-flight upload() (which owns its
+      // own currentUploads) is never touched; a user-confirmed resume clears
+      // recoveredState first, so this won't fire mid-resume either.
+      const recovering = nextState.recoveredState != null
+      const recoveredFiles = Object.values(nextState.files)
+      const recoveredUploadTerminal =
+        recoveredFiles.length > 0 &&
+        recoveredFiles.every(
+          (f) =>
+            f.progress.uploadComplete &&
+            !f.progress.preprocess &&
+            !f.progress.postprocess,
+        )
       if (
-        Object.values(prevState.files).some((f) => !f.progress.complete) &&
-        (Object.values(nextState.files).length === 0 ||
-          Object.values(nextState.files).every(
-            (f) => f.progress.complete && !f.error,
-          ))
+        recovering &&
+        (recoveredFiles.length === 0 || recoveredUploadTerminal)
       ) {
         this.uppy.log(
-          `[GoldenRetriever] All files have been uploaded and processed successfully, clearing recovery state`,
+          `[GoldenRetriever] Recovered upload reached a terminal state, clearing recovery state`,
         )
-        this.uppy.setState({ recoveredState: null })
+        // Retire ONLY the recovered batch's currentUploads (the zombie), never a
+        // concurrent live upload() the user may have started during recovery —
+        // clearing that would make its #runUpload's addResultData read an
+        // undefined entry.
+        const recoveredUploadIds = new Set(
+          Object.keys(nextState.recoveredState?.currentUploads ?? {}),
+        )
+        const currentUploads = Object.fromEntries(
+          Object.entries(nextState.currentUploads).filter(
+            ([id]) => !recoveredUploadIds.has(id),
+          ),
+        )
+        this.uppy.setState({
+          recoveredState: null,
+          currentUploads,
+          allowNewUpload: true,
+        })
       }
 
       // We don’t want to store file.data on local files, because the actual blob is too large and should therefore stored separately,
