@@ -385,7 +385,11 @@ describe('Transloadit', () => {
     results: {},
   }
 
-  async function restoreConnectedAssembly(worker, getStatus) {
+  async function restoreConnectedAssembly(
+    worker,
+    getStatus,
+    { opts = { waitForEncoding: true }, saved = finishedStatus } = {},
+  ) {
     worker.use(
       http.get('https://api2.transloadit.com/assemblies/*', () =>
         HttpResponse.json(getStatus()),
@@ -393,7 +397,7 @@ describe('Transloadit', () => {
     )
     const uppy = new Core()
     uppy.use(Transloadit, {
-      waitForEncoding: true,
+      ...opts,
       assemblyOptions: {
         params: { auth: { key: 'test-auth-key' }, template_id: 'test' },
       },
@@ -401,7 +405,7 @@ describe('Transloadit', () => {
     const plugin = uppy.getPlugin('Transloadit')
     plugin.client.cancelAssembly = () => Promise.resolve()
     uppy.emit('restored', {
-      Transloadit: { assemblyResponse: finishedStatus },
+      Transloadit: { assemblyResponse: saved },
     })
     await plugin.restored
     return { uppy, plugin, assembly: plugin.assembly }
@@ -425,6 +429,24 @@ describe('Transloadit', () => {
     await settle()
 
     expect(events).toEqual([])
+  })
+
+  it('completes a restored waitForMetadata upload saved as executing', async ({
+    worker,
+  }) => {
+    // SSE advances `ok` to EXECUTING before the metadata is extracted, and
+    // that status is what gets saved. After a reload the refetch must still
+    // produce 'metadata', which is all `waitForMetadata` completes off.
+    const completed = []
+    const { uppy } = await restoreConnectedAssembly(
+      worker,
+      () => finishedStatus,
+      { opts: { waitForMetadata: true } },
+    )
+    uppy.on('transloadit:complete', (a) => completed.push(a.ok))
+    await settle()
+
+    expect(completed).toEqual(['ASSEMBLY_EXECUTING'])
   })
 
   it('reports an error when the final-status request fails', async ({

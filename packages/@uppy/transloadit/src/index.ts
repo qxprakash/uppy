@@ -795,8 +795,19 @@ export default class Transloadit<
         }
       })
 
-      const assembly = new Assembly(previousAssembly, this.#rateLimitedQueue)
-      assembly.status = previousAssembly
+      // This page has seen none of the assembly's events, and the saved `ok`
+      // may have been advanced from SSE before the metadata was extracted.
+      // Diff the refetch from UPLOADING so 'executing' and 'metadata' fire
+      // again: `waitForMetadata` uploads complete off the latter.
+      const assembly = new Assembly(
+        previousAssembly.ok === 'ASSEMBLY_EXECUTING'
+          ? ({
+              ...previousAssembly,
+              ok: 'ASSEMBLY_UPLOADING',
+            } as AssemblyResponse)
+          : previousAssembly,
+        this.#rateLimitedQueue,
+      )
       this.assembly = assembly
       this.setPluginState({ files, results })
       return files
