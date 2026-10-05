@@ -210,11 +210,9 @@ export const getCredentialsOverrideMiddleware = (
       next()
     } catch (keyErr) {
       const error = toError(keyErr)
-      // Log and return a non-2xx status so this failure is observable: without
-      // this the catch sent the error page with a default 200, which looked like
-      // success to access logs and alerting (this masked the empty-gateway bug).
       logger.error(error, 'credentials.override.fail', req.id)
-      res.status(500).send(`
+      // 424 Failed Dependency, same as ProviderApiError for remote credentials
+      res.status(424).send(`
         <!DOCTYPE html>
         <html>
         <head>
