@@ -103,12 +103,7 @@ type TransloaditState = {
    */
   lastAssemblyStatus: AssemblyResponse | undefined
   /**
-   * The error the live assembly failed with, if any: a plain `Error` with
-   * the API's error response (or the network error) spread onto it, plus
-   * the assembly status at the time of the failure. The response fields are
-   * part of the type so consumers can read `error.error` or
-   * `error.assembly_id` without a cast, but a network failure carries none
-   * of them, which is why they are all optional. Cleared when the next
+   * The error the live assembly failed with, if any. Cleared when the next
    * assembly starts and on cancel-all.
    */
   error: AssemblyStateError | undefined
@@ -679,36 +674,30 @@ export default class Transloadit<
    * When an Assembly has finished processing, get the final state
    * and emit it.
    */
-  #onAssemblyFinished(assembly: Assembly) {
+  async #onAssemblyFinished(assembly: Assembly) {
     const url = getAssemblyUrlSsl(assembly.status)
-    this.client.getAssemblyStatus(url).then(
-      (finalStatus) => {
-        // Nothing cancels this request, so the assembly may have been cancelled
-        // or replaced locally while it was in flight. Whatever ended it has
-        // already notified the watcher, and the consumer does not want a
-        // completion for an assembly they just cancelled.
-        if (assembly !== this.assembly) return
+    const finalStatus = await this.client
+      .getAssemblyStatus(url)
+      .catch((err: Error) => err)
+    // Nothing cancels this request, so the assembly may have been cancelled
+    // or replaced locally while it was in flight. Whatever ended it has
+    // already notified the watcher, and the consumer does not want a
+    // completion for an assembly they just cancelled.
+    if (assembly !== this.assembly) return
 
-        assembly.status = finalStatus
-        // Like the `assembly_finished` message this mirrors, this says the
-        // assembly ended, not that it succeeded: the status carries `ok` and
-        // `error` so the consumer can tell a success from a cancellation or a
-        // failure.
-        this.uppy.emit('transloadit:complete', assembly.status)
-      },
-      (err) => {
-        // Without a terminal event the AssemblyWatcher, and with it
-        // `uppy.upload()`, would never settle.
-        if (assembly !== this.assembly) return
-        assembly.emit('error', err)
-      },
-    )
-  }
+    if (finalStatus instanceof Error) {
+      // Without a terminal event the AssemblyWatcher, and with it
+      // `uppy.upload()`, would never settle.
+      assembly.emit('error', finalStatus)
+      return
+    }
 
-  async #cancelAssembly(assembly: AssemblyResponse) {
-    await this.client.cancelAssembly(assembly)
-    // TODO bubble this through AssemblyWatcher so its event handlers can clean up correctly
-    this.uppy.emit('transloadit:assembly-cancelled', assembly)
+    assembly.status = finalStatus
+    // Like the `assembly_finished` message this mirrors, this says the
+    // assembly ended, not that it succeeded: the status carries `ok` and
+    // `error` so the consumer can tell a success from a cancellation or a
+    // failure.
+    this.uppy.emit('transloadit:complete', assembly.status)
   }
 
   /**
@@ -729,7 +718,8 @@ export default class Transloadit<
       // (and with it `#afterUpload` and `uppy.upload()`) settle.
       this.uppy.emit('transloadit:assembly-cancel', assembly.status)
       try {
-        await this.#cancelAssembly(assembly.status)
+        await this.client.cancelAssembly(assembly.status)
+        this.uppy.emit('transloadit:assembly-cancelled', assembly.status)
       } catch (err) {
         this.uppy.log(err)
       }
@@ -972,14 +962,10 @@ export default class Transloadit<
         ? ensureAssemblyId(this.assembly.status)
         : undefined
 
-      const closeSocketConnections = () => {
-        this.assembly?.close()
-      }
-
       // If we don't have to wait for encoding metadata or results, we can close
       // the socket immediately and finish the upload.
       if (!this.#shouldWaitAfterUpload()) {
-        closeSocketConnections()
+        this.#closeAssemblyIfExists()
         const status = this.assembly?.status
         if (status != null) {
           this.uppy.addResultData(uploadID, {
@@ -1008,7 +994,7 @@ export default class Transloadit<
 
       await this.#watcher.promise
       // assembly is now done processing!
-      closeSocketConnections()
+      this.#closeAssemblyIfExists()
       const status = this.assembly?.status
       if (status != null) {
         this.uppy.addResultData(uploadID, {

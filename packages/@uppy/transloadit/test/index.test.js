@@ -588,11 +588,10 @@ describe('Transloadit', () => {
 
     const state = uppy.getState().plugins.Transloadit
     expect(state.error?.message).toBe('One of the files is broken')
-    expect(state.error?.assembly?.error).toBe('INVALID_FILE_META_DATA')
-    // The live slot is gone; the last status and the error keep the failure
-    // until a new assembly starts.
+    expect(state.error?.error).toBe('INVALID_FILE_META_DATA')
+    // The live slot is gone; the error keeps the failure until a new
+    // assembly starts.
     expect(state.assemblyStatus).toBeUndefined()
-    expect(state.lastAssemblyStatus?.error).toBe('INVALID_FILE_META_DATA')
 
     plugin.assembly = new Assembly(status, new RateLimitedQueue())
     expect(uppy.getState().plugins.Transloadit.error).toBeUndefined()

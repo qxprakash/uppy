@@ -177,18 +177,6 @@ class TransloaditAssembly extends Emitter {
   }
 
   #onError(assemblyOrError: AssemblyResponse | NetworkError | Error) {
-    if (
-      typeof assemblyOrError === 'object' &&
-      !(assemblyOrError instanceof Error)
-    ) {
-      // An errored envelope from the API: fold it into the status so that
-      // `status` (and the plugin state mirroring it) shows the failure
-      // instead of the last good state. The API omits `ok` on an error, so
-      // drop the previous one rather than leaving `ok: ASSEMBLY_EXECUTING`
-      // sitting next to the error.
-      const { ok: _previousOk, ...withoutOk } = this.status
-      this.status = { ...withoutOk, ...assemblyOrError } as AssemblyResponse
-    }
     this.emit(
       'error',
       Object.assign(new Error(assemblyOrError.message), assemblyOrError),
@@ -268,27 +256,20 @@ class TransloaditAssembly extends Emitter {
    * emitted for status changes, new files, and new results.
    */
   updateStatus(next: AssemblyResponse): void {
-    // An errored status goes through `#onError`, which stores it and closes
-    // the assembly itself. Assigning it again here would emit a second
-    // `'status'` event, and do it on an already-closed assembly.
-    if (this.#diffStatus(this.status, next)) return
+    this.#diffStatus(this.status, next)
     this.status = next
   }
 
   /**
    * Diff two assembly statuses, and emit the events necessary to go from `prev`
    * to `next`.
-   *
-   * Returns whether `next` was routed through `#onError`, which already stored
-   * it, so the caller must not store it a second time.
    */
-  #diffStatus(prev: AssemblyResponse, next: AssemblyResponse): boolean {
+  #diffStatus(prev: AssemblyResponse, next: AssemblyResponse) {
     const prevStatus = prev.ok
     const nextStatus = next.ok
 
     if (next.error && !prev.error) {
-      this.#onError(next)
-      return true
+      return this.#onError(next)
     }
 
     // Desired emit order:
@@ -350,7 +331,7 @@ class TransloaditAssembly extends Emitter {
       this.emit('finished')
     }
 
-    return false
+    return undefined
   }
 
   /**

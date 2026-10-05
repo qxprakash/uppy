@@ -287,62 +287,6 @@ describe('Transloadit/Assembly', () => {
       expect(fetch).toHaveBeenCalledTimes(2)
     })
 
-    it('emits one status event for an errored polling update', () => {
-      // #diffStatus routes the errored status through #onError, which stores
-      // it and closes the assembly; updateStatus must not store it again.
-      const base = { uploads: {}, results: {} }
-      const assembly = new Assembly(
-        { ...base, ok: 'ASSEMBLY_EXECUTING' },
-        new RateLimitedQueue(),
-      )
-      const seen = []
-      assembly.on('status', (status) => seen.push(status.error))
-      assembly.on('error', () => {})
-
-      assembly.updateStatus({
-        ...base,
-        error: 'ASSEMBLY_CRASHED',
-        message: 'boom',
-      })
-
-      expect(seen).toEqual(['ASSEMBLY_CRASHED'])
-      expect(assembly.closed).toBe(true)
-    })
-
-    it('drops a stale ok when folding in an error envelope', () => {
-      const assembly = connect({ ok: 'ASSEMBLY_EXECUTING' })
-
-      FakeEventSource.last.dispatch(
-        'assembly_error',
-        JSON.stringify({ error: 'ASSEMBLY_CRASHED', message: 'boom' }),
-      )
-
-      // The API omits `ok` on an error; a retained ASSEMBLY_EXECUTING would
-      // describe the failed job as still running.
-      expect(assembly.status.error).toBe('ASSEMBLY_CRASHED')
-      expect(assembly.status.ok).toBeUndefined()
-    })
-
-    it('folds an SSE error envelope into the status before emitting error', () => {
-      const assembly = connect({ ok: 'ASSEMBLY_EXECUTING' })
-      const events = []
-      assembly.on('status', (status) => events.push(['status', status.error]))
-      assembly.on('error', (error) => events.push(['error', error.error]))
-
-      FakeEventSource.last.dispatch(
-        'assembly_error',
-        JSON.stringify({ error: 'ASSEMBLY_CRASHED', message: 'boom' }),
-      )
-
-      expect(assembly.closed).toBe(true)
-      expect(assembly.status.error).toBe('ASSEMBLY_CRASHED')
-      expect(assembly.status.message).toBe('boom')
-      expect(events).toEqual([
-        ['status', 'ASSEMBLY_CRASHED'],
-        ['error', 'ASSEMBLY_CRASHED'],
-      ])
-    })
-
     it('keeps progress_combined when a full status replaces it', () => {
       const base = { ok: 'ASSEMBLY_EXECUTING', uploads: {}, results: {} }
       const assembly = new Assembly(base, new RateLimitedQueue())
