@@ -268,9 +268,7 @@ export default class Uploader {
         logger.debug('Received from client: pause', 'uploader', this.shortToken)
         if (this.#uploadState !== states.uploading) return
         this.#uploadState = states.paused
-        if (this.tus) {
-          this.tus.abort()
-        }
+        this.#abortTus(false)
       })
 
       emitter().on(`resume:${this.token}`, () => {
@@ -289,12 +287,7 @@ export default class Uploader {
 
     emitter().on(`cancel:${this.token}`, () => {
       logger.debug('Received from client: cancel', 'uploader', this.shortToken)
-      if (this.tus) {
-        const shouldTerminate = !!this.tus.url
-        this.tus.abort(shouldTerminate).catch((err) => {
-          logger.warn(err, 'uploader.tus.abort.error', this.shortToken)
-        })
-      }
+      this.#abortTus(!!this.tus?.url)
       this.#canceled = true
       this.abortReadStream(new Error('Canceled'))
     })
@@ -441,9 +434,16 @@ export default class Uploader {
     try {
       await unlink(this.tmpPath)
     } catch (err) {
-      // Best-effort cleanup; log so a failed unlink (which leaks a temp file) is visible.
+      // The file may never have been created (e.g. canceled before download)
+      if (isRecord(err) && err['code'] === 'ENOENT') return
       logger.warn(err, 'uploader.cleanup.error', this.shortToken)
     }
+  }
+
+  #abortTus(shouldTerminate: boolean): void {
+    this.tus?.abort(shouldTerminate).catch((err) => {
+      logger.warn(err, 'uploader.tus.abort.error', this.shortToken)
+    })
   }
 
   async tryUploadStream(

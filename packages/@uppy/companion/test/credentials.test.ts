@@ -11,6 +11,7 @@ import {
 } from 'vitest'
 import * as tokenService from '../dist/server/helpers/jwt.js'
 import * as oAuthState from '../dist/server/helpers/oauth-state.js'
+import logger from '../dist/server/logger.js'
 import { nockZoomRevoke, expects as zoomExpects } from './fixtures/zoom.js'
 import { getServer } from './mockserver.js'
 
@@ -144,13 +145,20 @@ describe('remote credentials with transloadit_gateway', () => {
     )
   })
 
-  test('a failure resolving credentials returns a logged 500, not a silent 200', async () => {
-    // A non-empty but invalid gateway makes `new URL(path, gateway)` throw,
-    // which exercises the catch block. Previously it sent the error page with a
-    // default 200 status (and no log), so the failure looked like a success to
-    // access logs and alerting. It must now return a non-2xx status.
-    const res = await connectWithGateway('not a valid url')
-    expect(res.status).toBe(500)
-    expect(res.text).toContain('Could not fetch credentials')
+  test('a failure resolving credentials is logged and returns 424', async () => {
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => {})
+    try {
+      // invalid gateway makes `new URL(path, gateway)` throw
+      const res = await connectWithGateway('not a valid url')
+      expect(res.status).toBe(424)
+      expect(res.text).toContain('Could not fetch credentials')
+      expect(error.mock.calls).toContainEqual([
+        expect.objectContaining({ message: 'Invalid URL' }),
+        'credentials.override.fail',
+        undefined,
+      ])
+    } finally {
+      error.mockRestore()
+    }
   })
 })
