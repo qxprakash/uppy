@@ -46,17 +46,6 @@ class TransloaditAssembly extends Emitter {
 
   #status: AssemblyResponse
 
-  /**
-   * When the SSE `assembly_uploading_finished` handler advances `ok` itself,
-   * the `ok` it replaced. `#diffStatus` compares against this instead of the
-   * current status, because a client-advanced `ok` would make the
-   * uploading -> executing transition look like it already happened and
-   * suppress the derived `'executing'` and `'metadata'` events. Losing
-   * `'metadata'` strands `waitForMetadata` uploads, which complete off that
-   * event alone. Cleared as soon as a server status lands.
-   */
-  #okBeforeClientAdvance: AssemblyResponse['ok'] | undefined
-
   pollInterval: ReturnType<typeof setInterval> | null
 
   closed: boolean
@@ -92,10 +81,13 @@ class TransloaditAssembly extends Emitter {
   }
   set status(status: AssemblyResponse) {
     // `progress_combined` only arrives over SSE; a full status fetched from
-    // the server never carries it, so keep the last value we saw.
+    // the server never carries it, so keep the last value we saw while
+    // executing. Past that it would only be stale.
     const { progress_combined } = this.#status
     this.#status =
-      progress_combined == null ? status : { progress_combined, ...status }
+      progress_combined != null && status.ok === ASSEMBLY_EXECUTING
+        ? { progress_combined, ...status }
+        : status
     this.emit('status', this.#status)
   }
 
@@ -123,9 +115,10 @@ class TransloaditAssembly extends Emitter {
       if (e.data === 'assembly_uploading_finished') {
         // SSE only sends this marker, never a new envelope, so advance `ok`
         // here. UPLOADING is the only state this marker can legitimately
-        // leave; a refetch may already have moved on (or errored).
+        // leave; a refetch may already have moved on (or errored). A diffed
+        // status landing later then won't re-emit 'executing'/'metadata':
+        // over SSE those come from their own markers.
         if (this.status.ok === ASSEMBLY_UPLOADING) {
-          this.#okBeforeClientAdvance = this.status.ok
           // `AssemblyStatus` is a union; overriding `ok` on a spread needs a cast.
           this.status = {
             ...this.status,
@@ -180,8 +173,6 @@ class TransloaditAssembly extends Emitter {
       } catch {
         this.#onError(new Error(e.data))
       }
-      // Refetch for updated status code
-      this.#fetchStatus({ diff: false })
     })
   }
 
@@ -236,7 +227,6 @@ class TransloaditAssembly extends Emitter {
       const statusUrl = getAssemblyUrlSsl(this.status)
 
       const response = await this.#fetchWithNetworkError(statusUrl)
-      this.#previousFetchStatusStillPending = false
 
       if (this.closed) return
 
@@ -258,13 +248,14 @@ class TransloaditAssembly extends Emitter {
       if (diff) {
         this.updateStatus(status)
       } else {
-        this.#okBeforeClientAdvance = undefined
         this.status = status
       }
     } catch (err) {
       // A fetch that was in flight when we closed is nobody's business.
       if (this.closed) return
       this.#onError(toError(err))
+    } finally {
+      this.#previousFetchStatusStillPending = false
     }
   }
 
@@ -281,7 +272,6 @@ class TransloaditAssembly extends Emitter {
     // the assembly itself. Assigning it again here would emit a second
     // `'status'` event, and do it on an already-closed assembly.
     if (this.#diffStatus(this.status, next)) return
-    this.#okBeforeClientAdvance = undefined
     this.status = next
   }
 
@@ -293,7 +283,7 @@ class TransloaditAssembly extends Emitter {
    * it, so the caller must not store it a second time.
    */
   #diffStatus(prev: AssemblyResponse, next: AssemblyResponse): boolean {
-    const prevStatus = this.#okBeforeClientAdvance ?? prev.ok
+    const prevStatus = prev.ok
     const nextStatus = next.ok
 
     if (next.error && !prev.error) {

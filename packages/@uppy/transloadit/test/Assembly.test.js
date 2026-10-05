@@ -254,42 +254,37 @@ describe('Transloadit/Assembly', () => {
       }
     })
 
-    it('still emits metadata after the SSE marker advanced ok', () => {
-      // `waitForMetadata` uploads complete off 'metadata' alone, and
-      // #diffStatus only emits it on the uploading -> executing transition.
-      // Advancing `ok` from the SSE marker must not hide that transition.
+    it('does not re-emit executing/metadata when a diffed status lands after the SSE marker', () => {
+      // Over SSE, 'executing' and 'metadata' come from their own markers; a
+      // poll that was in flight must not emit them a second time.
       const base = { uploads: {}, results: {} }
       const assembly = connect({ ...base, ok: 'ASSEMBLY_UPLOADING' })
-
-      FakeEventSource.last.dispatch('message', 'assembly_uploading_finished')
-      expect(assembly.status.ok).toBe('ASSEMBLY_EXECUTING')
-
       const events = []
-      for (const name of ['executing', 'metadata', 'finished']) {
+      for (const name of ['executing', 'metadata']) {
         assembly.on(name, () => events.push(name))
       }
-      assembly.updateStatus({ ...base, ok: 'ASSEMBLY_COMPLETED' })
-      assembly.close()
-
-      expect(events).toEqual(['executing', 'metadata', 'finished'])
-    })
-
-    it('stops diffing against the advanced ok once a server status lands', () => {
-      const base = { uploads: {}, results: {} }
-      const assembly = connect({ ...base, ok: 'ASSEMBLY_UPLOADING' })
 
       FakeEventSource.last.dispatch('message', 'assembly_uploading_finished')
-      // A server status replaces the client-advanced one...
-      assembly.updateStatus({ ...base, ok: 'ASSEMBLY_EXECUTING' })
-
-      const events = []
-      assembly.on('executing', () => events.push('executing'))
-      assembly.on('metadata', () => events.push('metadata'))
-      // ...so this transition is genuinely not a new uploading -> executing.
       assembly.updateStatus({ ...base, ok: 'ASSEMBLY_EXECUTING' })
       assembly.close()
 
-      expect(events).toEqual([])
+      expect(events).toEqual(['executing'])
+    })
+
+    it('keeps polling after a status fetch throws', async () => {
+      const fetch = vi.fn().mockRejectedValue(new TypeError('offline'))
+      vi.stubGlobal('fetch', fetch)
+      const assembly = new Assembly(
+        { ok: 'ASSEMBLY_EXECUTING', assembly_ssl_url: 'https://x/a' },
+        new RateLimitedQueue(),
+      )
+      assembly.on('error', () => {})
+
+      await assembly.update()
+      assembly.closed = false
+      await assembly.update()
+
+      expect(fetch).toHaveBeenCalledTimes(2)
     })
 
     it('emits one status event for an errored polling update', () => {
@@ -356,6 +351,16 @@ describe('Transloadit/Assembly', () => {
       assembly.updateStatus({ ...base })
 
       expect(assembly.status.progress_combined).toBe(42)
+    })
+
+    it('drops progress_combined once the assembly is no longer executing', () => {
+      const base = { ok: 'ASSEMBLY_EXECUTING', uploads: {}, results: {} }
+      const assembly = new Assembly(base, new RateLimitedQueue())
+      assembly.status = { ...base, progress_combined: 42 }
+
+      assembly.updateStatus({ ...base, ok: 'ASSEMBLY_COMPLETED' })
+
+      expect(assembly.status.progress_combined).toBeUndefined()
     })
   })
 })

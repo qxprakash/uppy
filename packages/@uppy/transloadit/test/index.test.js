@@ -427,6 +427,28 @@ describe('Transloadit', () => {
     expect(events).toEqual([])
   })
 
+  it('reports an error when the final-status request fails', async ({
+    worker,
+  }) => {
+    // Without a terminal event the AssemblyWatcher never settles, and
+    // `uppy.upload()` hangs.
+    const { uppy, plugin, assembly } = await restoreConnectedAssembly(
+      worker,
+      () => finishedStatus,
+    )
+    plugin.client.getAssemblyStatus = () => Promise.reject(new Error('offline'))
+    const errors = []
+    uppy.on('transloadit:assembly-error', (_status, error) =>
+      errors.push(error.message),
+    )
+
+    assembly.emit('finished')
+    await settle()
+
+    expect(errors).toEqual(['offline'])
+    expect(uppy.getState().plugins.Transloadit.error?.message).toBe('offline')
+  })
+
   it('still emits complete when the assembly ended by cancellation', async ({
     worker,
   }) => {

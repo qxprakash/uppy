@@ -681,20 +681,28 @@ export default class Transloadit<
    */
   #onAssemblyFinished(assembly: Assembly) {
     const url = getAssemblyUrlSsl(assembly.status)
-    this.client.getAssemblyStatus(url).then((finalStatus) => {
-      // Nothing cancels this request, so the assembly may have been cancelled
-      // or replaced locally while it was in flight. Whatever ended it has
-      // already notified the watcher, and the consumer does not want a
-      // completion for an assembly they just cancelled.
-      if (assembly !== this.assembly) return
+    this.client.getAssemblyStatus(url).then(
+      (finalStatus) => {
+        // Nothing cancels this request, so the assembly may have been cancelled
+        // or replaced locally while it was in flight. Whatever ended it has
+        // already notified the watcher, and the consumer does not want a
+        // completion for an assembly they just cancelled.
+        if (assembly !== this.assembly) return
 
-      assembly.status = finalStatus
-      // Like the `assembly_finished` message this mirrors, this says the
-      // assembly ended, not that it succeeded: the status carries `ok` and
-      // `error` so the consumer can tell a success from a cancellation or a
-      // failure.
-      this.uppy.emit('transloadit:complete', assembly.status)
-    })
+        assembly.status = finalStatus
+        // Like the `assembly_finished` message this mirrors, this says the
+        // assembly ended, not that it succeeded: the status carries `ok` and
+        // `error` so the consumer can tell a success from a cancellation or a
+        // failure.
+        this.uppy.emit('transloadit:complete', assembly.status)
+      },
+      (err) => {
+        // Without a terminal event the AssemblyWatcher, and with it
+        // `uppy.upload()`, would never settle.
+        if (assembly !== this.assembly) return
+        assembly.emit('error', err)
+      },
+    )
   }
 
   async #cancelAssembly(assembly: AssemblyResponse) {
