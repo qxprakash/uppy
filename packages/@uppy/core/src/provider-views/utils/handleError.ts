@@ -3,8 +3,13 @@ import { describeCompanionError } from '../../companion-client/errorCodes.js'
 import type Uppy from '../../index.js'
 import { isAbortError, toError } from '../../utils/index.js'
 
+/**
+ * Logs a failed provider operation, and tells the user when Companion sent a
+ * `UserFacingApiError`. `alwaysNotify` tells them about any other failure too,
+ * for an operation that would otherwise end with no visible change.
+ */
 const handleError =
-  (uppy: Uppy<any, any>) =>
+  (uppy: Uppy<any, any>, { alwaysNotify = false } = {}) =>
   (err: unknown): void => {
     // authError just means we're not authenticated, don't report it
     if (isAuthError(err)) {
@@ -27,6 +32,8 @@ const handleError =
         'warning',
         5000,
       )
+    } else if (alwaysNotify) {
+      uppy.info(uppy.i18n('companionError'), 'warning', 5000)
     }
   }
 

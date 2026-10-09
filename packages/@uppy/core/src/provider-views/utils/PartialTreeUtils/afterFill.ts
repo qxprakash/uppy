@@ -16,12 +16,11 @@ export type ApiList = (directory: PartialTreeId) => Promise<{
 }>
 
 const recursivelyFetch = async (
-  enqueue: (folder: PartialTreeFolderNode) => void,
   poorTree: PartialTree,
   poorFolder: PartialTreeFolderNode,
   apiList: ApiList,
   validateSingleFile: (file: CompanionFile) => string | null,
-) => {
+): Promise<PartialTreeFolderNode[]> => {
   let items: CompanionFile[] = []
   let currentPath: PartialTreeId = poorFolder.cached
     ? poorFolder.nextPagePath
@@ -64,7 +63,7 @@ const recursivelyFetch = async (
   poorFolder.nextPagePath = null
   poorTree.push(...files, ...folders)
 
-  folders.forEach(enqueue)
+  return folders
 }
 
 const afterFill = async (
@@ -82,22 +81,24 @@ const afterFill = async (
   // selection. Recorded inside the task, so it is set before `onIdle()` resolves.
   let failed = false
   let firstError: unknown
+  // After a failure, request nothing more, not even the next page of a running
+  // listing: the fill fails anyway.
+  const list: ApiList = (path) =>
+    failed ? Promise.reject(firstError) : apiList(path)
   const enqueue = (folder: PartialTreeFolderNode) => {
-    if (failed) return
     queue.add(async () => {
       try {
-        await recursivelyFetch(
-          enqueue,
+        const subfolders = await recursivelyFetch(
           poorTree,
           folder,
-          apiList,
+          list,
           validateSingleFile,
         )
+        subfolders.forEach(enqueue)
       } catch (err) {
         if (failed) return
         failed = true
         firstError = err
-        queue.clear()
       }
     })
   }
