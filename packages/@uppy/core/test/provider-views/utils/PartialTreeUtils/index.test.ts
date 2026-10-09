@@ -369,6 +369,42 @@ describe('afterFill()', () => {
     // neither the queued f7/f8 nor the subfolders revealed by f3..f6 are listed
     expect(listed.sort()).toEqual(['f1', 'f2', 'f3', 'f4', 'f5', 'f6'])
   })
+
+  it('fetches no further page of a running listing after a failure', async () => {
+    // prettier-ignore
+    const tree: PartialTree = [
+      _root('ourRoot'),
+      _folder('big', { parentId: 'ourRoot', cached: false, status: 'checked' }),
+      _folder('bad', { parentId: 'ourRoot', cached: false, status: 'checked' }),
+    ]
+    const boom = new Error('boom')
+    const listed: string[] = []
+    const mock: ApiList = (path) => {
+      listed.push(path as string)
+      if (path === 'bad') return Promise.reject(boom)
+      if (path === 'big_page2') {
+        return Promise.resolve({ nextPagePath: null, items: [_cFile('big_2')] })
+      }
+      // the first page settles after 'bad' has failed, and points to a second
+      return new Promise((resolve) =>
+        setTimeout(
+          () =>
+            resolve({ nextPagePath: 'big_page2', items: [_cFile('big_1')] }),
+          20,
+        ),
+      )
+    }
+
+    await expect(
+      afterFill(
+        tree,
+        mock,
+        () => null,
+        () => {},
+      ),
+    ).rejects.toBe(boom)
+    expect(listed.sort()).toEqual(['bad', 'big'])
+  })
 })
 
 describe('afterOpenFolder()', () => {
