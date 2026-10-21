@@ -13,7 +13,7 @@ const meta = async (req: Request, res: Response): Promise<void> => {
   try {
     logger.debug('URL file import handler running', undefined, req.id)
     const { allowLocalUrls } = req.companion.options
-    if (!validateURL(req.body.url, allowLocalUrls)) {
+    if (!validateURL(req.body?.url, allowLocalUrls)) {
       logger.debug(
         'Invalid request body detected. Exiting url meta handler.',
         undefined,
@@ -23,7 +23,7 @@ const meta = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    const urlMeta = await getURLMeta(req.body.url, allowLocalUrls)
+    const urlMeta = await getURLMeta(req.body?.url, allowLocalUrls)
     res.json(urlMeta)
   } catch (err) {
     logger.error(err, 'controller.url.meta.error', req.id)
@@ -38,7 +38,7 @@ const meta = async (req: Request, res: Response): Promise<void> => {
 const get = async (req: Request, res: Response): Promise<void> => {
   logger.debug('URL file import handler running', undefined, req.id)
   const { allowLocalUrls } = req.companion.options
-  if (!validateURL(req.body.url, allowLocalUrls)) {
+  if (!validateURL(req.body?.url, allowLocalUrls)) {
     logger.debug(
       'Invalid request body detected. Exiting url import handler.',
       undefined,
@@ -48,7 +48,7 @@ const get = async (req: Request, res: Response): Promise<void> => {
     return
   }
 
-  const download = () => downloadURL(req.body.url, allowLocalUrls, req.id)
+  const download = () => downloadURL(req.body?.url, allowLocalUrls, req.id)
 
   try {
     await startDownUpload({ req, res, download, getSize: undefined })

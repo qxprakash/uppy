@@ -64,6 +64,19 @@ describe('url meta', () => {
 
     expect(res.body.error).toBe('Invalid request body')
   })
+
+  test.each([
+    '',
+    'url=http://url.myendpoint.com/files',
+  ])('return 400 when the request has no JSON body', async (body) => {
+    const res = await request(await getMockServer())
+      .post('/url/meta')
+      .set('Content-Type', 'text/plain')
+      .send(body)
+      .expect(400)
+
+    expect(res.body.error).toBe('Invalid request body')
+  })
 })
 
 describe('url get', () => {
@@ -96,6 +109,21 @@ describe('url get', () => {
         endpoint: 'http://tusd.tusdemo.net/files',
         protocol: 'tus',
       })
+      .expect(400)
+
+    expect(res.body.error).toBe('Invalid request body')
+  })
+
+  test.each([
+    '',
+    'url=http://url.myendpoint.com/files',
+  ])('downloads are not instantiated when the request has no JSON body', async (body) => {
+    nockUrl()
+
+    const res = await request(await getMockServer())
+      .post('/url/get')
+      .set('Content-Type', 'text/plain')
+      .send(body)
       .expect(400)
 
     expect(res.body.error).toBe('Invalid request body')
