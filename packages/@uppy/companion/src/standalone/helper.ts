@@ -1,6 +1,5 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
-import merge from 'lodash/merge.js'
 import z from 'zod'
 import packageJson from '../../package.json' with { type: 'json' }
 import type {
@@ -402,7 +401,7 @@ const getConfigFromFile = () => {
 export const getCompanionOptions = (
   options?: CompanionInitOptions | undefined,
 ): CompanionInitOptions => {
-  return merge({}, getConfigFromEnv(), getConfigFromFile(), options)
+  return utils.merge({}, getConfigFromEnv(), getConfigFromFile(), options)
   // This schema is intentionally tolerant and should not change runtime behavior.
 }
 

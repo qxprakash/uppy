@@ -16,7 +16,6 @@ import { FormData } from 'formdata-node'
 import type { OptionsOfTextResponseBody, Response } from 'got'
 import got from 'got'
 import type { Redis } from 'ioredis'
-import throttle from 'lodash/throttle.js'
 import tus from 'tus-js-client'
 import validator from 'validator'
 import type { CompanionRuntimeOptions } from '../types/companion-options.js'
@@ -28,6 +27,7 @@ import {
   hasUploadUrlMatch,
   jsonStringify,
   rfc2047EncodeMetadata,
+  throttle,
   truncateFilename,
 } from './helpers/utils.js'
 import * as logger from './logger.js'
@@ -459,7 +459,6 @@ export default class Uploader {
         emitter().emit(this.token, dataToEmit)
       },
       1000,
-      { trailing: false },
     )
   }
 

@@ -1,5 +1,5 @@
-import type { CorsOptions } from 'cors'
 import type { NextFunction, Request, Response } from 'express'
+import type { CorsOrigin } from '../../schemas/companion.js'
 import * as oAuthState from '../helpers/oauth-state.js'
 import { isRecord } from '../helpers/type-guards.js'
 import { SOCKET_TOKEN_RE } from '../helpers/utils.js'
@@ -10,7 +10,7 @@ import { SOCKET_TOKEN_RE } from '../helpers/utils.js'
  */
 function isOriginAllowed(
   origin: string,
-  allowedOrigins: CorsOptions['origin'],
+  allowedOrigins: CorsOrigin | undefined,
 ): boolean {
   if (Array.isArray(allowedOrigins)) {
     return allowedOrigins.some((allowedOrigin) =>

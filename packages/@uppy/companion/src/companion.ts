@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import type { Express, RequestHandler } from 'express'
 import express from 'express'
 import grant from 'grant'
-import merge from 'lodash/merge.js'
 import packageJson from '../package.json' with { type: 'json' }
 import {
   defaultOptions,
@@ -21,7 +20,7 @@ import searchController from './server/controllers/search.js'
 import url from './server/controllers/url.js'
 import type { EmitterLike } from './server/emitter/index.js'
 import createEmitter from './server/emitter/index.js'
-import { getURLBuilder } from './server/helpers/utils.js'
+import { getURLBuilder, merge } from './server/helpers/utils.js'
 import * as jobs from './server/jobs.js'
 import logger from './server/logger.js'
 import * as middlewares from './server/middlewares.js'

@@ -1,7 +1,8 @@
 import type { Redis } from 'ioredis'
-import { expect, test, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import redisEmitter, {
   escapeGlob,
+  stringifyArgs,
 } from '../dist/server/emitter/redis-emitter.js'
 
 function fakeRedis() {
@@ -61,4 +62,57 @@ test('removing the last listener unsubscribes the escaped pattern', async () => 
   await em.on('a*b', h)
   await em.removeListener('a*b', h)
   expect(redis.punsubscribe).toHaveBeenCalledWith('scope:a\\*b')
+})
+
+describe('stringifyArgs', () => {
+  test('drops a property pointing back to an object it is nested in', () => {
+    const obj: Record<string, unknown> = { a: 1, nested: { b: 2 } }
+    obj['self'] = obj
+    ;(obj['nested'] as Record<string, unknown>)['up'] = obj
+    expect(stringifyArgs([obj])).toBe('[{"a":1,"nested":{"b":2}}]')
+  })
+
+  test('drops keys starting with an underscore', () => {
+    expect(stringifyArgs([{ _internal: 1, a: { _b: 2, c: 3 } }])).toBe(
+      '[{"a":{"c":3}}]',
+    )
+  })
+
+  test('keeps an object that appears more than once without a cycle', () => {
+    const shared = { x: 1 }
+    expect(stringifyArgs(['token', { a: shared, b: [shared] }])).toBe(
+      '["token",{"a":{"x":1},"b":[{"x":1}]}]',
+    )
+  })
+
+  test("drops the string '[Circular]'", () => {
+    expect(stringifyArgs([{ a: '[Circular]', b: 1 }])).toBe('[{"b":1}]')
+  })
+})
+
+describe('emit with arguments that cannot be serialized', () => {
+  test.each([
+    ['a BigInt', { n: 1n }],
+    [
+      'a throwing toJSON',
+      {
+        toJSON() {
+          throw new Error('nope')
+        },
+      },
+    ],
+  ])('%s is logged and not published', async (_name, arg) => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const redis = fakeRedis()
+      const em = redisEmitter(asRedis(redis), 'scope')
+      await expect(em.emit('event', arg)).resolves.toBeUndefined()
+      expect(redis.publish).not.toHaveBeenCalled()
+      expect(log.mock.calls.flat().join(' ')).toContain(
+        'emitter.serialize.error',
+      )
+    } finally {
+      log.mockRestore()
+    }
+  })
 })

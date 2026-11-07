@@ -1,5 +1,5 @@
-import moment from 'moment-timezone'
 import { isRecord } from '../../helpers/type-guards.js'
+import { formatTime, getTimeZone, parseTime } from './time.js'
 
 const MIMETYPES = {
   MP4: 'video/mp4',
@@ -86,14 +86,13 @@ const getIsFolder = (item: ZoomItem): boolean => {
   return !item.file_type
 }
 
-const getItemName = (
-  item: ZoomItem,
-  userResponse: ZoomUserResponse,
-): string => {
+const getItemName = (item: ZoomItem, timeZone: string): string => {
   const timestamp = item.start_time || item.recording_start
-  const start = moment
-    .tz(timestamp, userResponse.timezone || 'UTC')
-    .format('YYYY-MM-DD, HH:mm')
+  const start = formatTime(
+    timestamp ? parseTime(timestamp, timeZone) : Date.now(),
+    timeZone,
+    { withTime: true },
+  )
 
   if (item.file_type) {
     const ext = Object.hasOwn(EXT, item.file_type)
@@ -265,11 +264,12 @@ const adaptData = (
       )
   }
 
+  const timeZone = getTimeZone(userResponse.timezone)
   itemsToProcess.forEach((item) => {
     data.items.push({
       isFolder: getIsFolder(item),
       icon: getIcon(item),
-      name: getItemName(item, userResponse),
+      name: getItemName(item, timeZone),
       mimeType: getMimeType(item),
       id: getId(item),
       thumbnail: null,

@@ -1,12 +1,41 @@
 import { EventEmitter } from 'node:events'
-import safeStringify from 'fast-safe-stringify'
 import type { Redis } from 'ioredis'
 import * as logger from '../logger.js'
 import type { EmitterLike } from './index.js'
 
-function replacer(key: string, value: unknown): unknown {
-  // Remove the circular structure and internal ones
-  return key[0] === '_' || value === '[Circular]' ? undefined : value
+/**
+ * JSON.stringify that leaves out keys starting with `_`, the string
+ * '[Circular]', and properties that point back to an object they are nested
+ * in. Those are found depth first, and a property found once is left out
+ * wherever its object appears again. Other repeated objects are serialized in
+ * full each time.
+ */
+export function stringifyArgs(args: unknown[]): string {
+  const circular = new Map<object, Set<string>>()
+  const path: object[] = []
+  const visit = (value: object) => {
+    path.push(value)
+    for (const [key, child] of Object.entries(value)) {
+      if (typeof child !== 'object' || child === null) continue
+      if (circular.get(value)?.has(key)) continue
+      if (path.includes(child)) {
+        const keys = circular.get(value) ?? new Set()
+        circular.set(value, keys.add(key))
+      } else {
+        visit(child)
+      }
+    }
+    path.pop()
+  }
+  visit(args)
+
+  return JSON.stringify(
+    args,
+    function replacer(this: object, key: string, value: unknown) {
+      if (key[0] === '_' || value === '[Circular]') return undefined
+      return circular.get(this)?.has(key) ? undefined : value
+    },
+  )
 }
 
 /**
@@ -205,11 +234,16 @@ export default function redisEmitter(
    * @param eventName name of the event
    */
   async function emit(eventName: string, ...args: unknown[]) {
+    let message: string
+    try {
+      message = stringifyArgs(args)
+    } catch (err) {
+      // e.g. a BigInt, or a toJSON that throws: nothing to publish
+      logger.error(err, 'emitter.serialize.error')
+      return
+    }
     await runWhenConnected(async ({ publisher }) =>
-      publisher.publish(
-        getChannelName(eventName),
-        safeStringify.default(args, replacer),
-      ),
+      publisher.publish(getChannelName(eventName), message),
     )
   }
 

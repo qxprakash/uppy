@@ -4,10 +4,25 @@ import type {
   ServerSideEncryption,
 } from '@aws-sdk/client-s3'
 import type { PresignedPostOptions } from '@aws-sdk/s3-presigned-post'
-import type { CorsOptions } from 'cors'
 import type { Request } from 'express'
 import type { RedisOptions } from 'ioredis'
 import type Provider from '../server/provider/Provider.js'
+
+type StaticCorsOrigin =
+  | boolean
+  | string
+  | RegExp
+  | Array<boolean | string | RegExp>
+
+/**
+ * The `origin` option of the `cors` package (same type as its `CorsOptions['origin']`).
+ */
+export type CorsOrigin =
+  | StaticCorsOrigin
+  | ((
+      requestOrigin: string | undefined,
+      callback: (err: Error | null, origin?: StaticCorsOrigin) => void,
+    ) => void)
 
 // todo implement zod schema validation and remove manual typeof validation around in the code, also in providers/adapters
 // see `validateConfig`
@@ -194,7 +209,7 @@ export interface CompanionInitOptions {
   allowLocalUrls?: boolean | undefined
   clientSocketConnectTimeout?: number | undefined
 
-  corsOrigins?: CorsOptions['origin'] | undefined
+  corsOrigins?: CorsOrigin | undefined
   periodicPingStaticPayload?: unknown
   /** Uploads to S3 (`@uppy/aws-s3`). The S3 *provider* is `providerOptions.s3`. */
   s3?: S3ClientOptions &

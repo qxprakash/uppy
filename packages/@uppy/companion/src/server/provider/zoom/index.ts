@@ -1,5 +1,4 @@
 import got from 'got'
-import moment from 'moment-timezone'
 import { isRecord } from '../../helpers/type-guards.js'
 import {
   getBasicAuthHeader,
@@ -20,6 +19,12 @@ import Provider, {
 } from '../Provider.js'
 import { withProviderErrorHandling } from '../providerErrors.js'
 import adaptData from './adapter.js'
+import {
+  getMonthInUtc,
+  getTimeZone,
+  getYearAndMonth,
+  parseTime,
+} from './time.js'
 
 const BASE_URL = 'https://zoom.us/v2'
 const PAGE_SIZE = 300
@@ -139,8 +144,7 @@ export default class Zoom extends Provider<ZoomUserSession> {
         ...(email ? { email } : {}),
         ...(timezoneValue ? { timezone: timezoneValue } : {}),
       }
-      const timezone = user.timezone ?? null
-      const userTz = timezone || 'UTC'
+      const timeZone = getTimeZone(user.timezone)
 
       if (meetingId) {
         const recordingInfo = await client
@@ -152,25 +156,21 @@ export default class Zoom extends Provider<ZoomUserSession> {
       }
 
       if (requestedYear) {
-        const now = moment.tz(userTz)
-        const numMonths =
-          now.get('year') === requestedYear ? now.get('month') + 1 : 12
-        const monthsToCheck = Array.from({ length: numMonths }, (_, i) => i) // in moment, months are 0-indexed
+        const now = getYearAndMonth(Date.now(), timeZone)
+        const numMonths = now.year === requestedYear ? now.month + 1 : 12
+        const monthsToCheck = Array.from({ length: numMonths }, (_, i) => i) // months are 0-indexed
 
         // Run each month in parallel:
         const allMeetingsInYear = (
           await mapConcurrently(
             monthsToCheck,
             async (month) => {
-              const startDate = moment
-                .tz({ year: requestedYear, month, day: 1 }, userTz)
-                .startOf('month')
-              const endDate = startDate.clone().endOf('month')
+              const { from, to } = getMonthInUtc(requestedYear, month, timeZone)
 
               const searchParams = new URLSearchParams({
                 page_size: String(PAGE_SIZE),
-                from: startDate.clone().tz('UTC').format('YYYY-MM-DD'),
-                to: endDate.clone().tz('UTC').format('YYYY-MM-DD'),
+                from,
+                to,
               })
 
               const paginatedMeetings: unknown[] = []
@@ -211,13 +211,13 @@ export default class Zoom extends Provider<ZoomUserSession> {
         return adaptData(user, finalResult)
       }
 
-      const accountCreationDate = moment.utc(
+      const accountCreationDate = new Date(
         typeof userObj['created_at'] === 'string'
-          ? userObj['created_at']
-          : undefined,
+          ? parseTime(userObj['created_at'], 'UTC')
+          : Date.now(),
       )
-      const startYear = accountCreationDate.year()
-      const currentYear = moment.tz(userTz).year()
+      const startYear = accountCreationDate.getUTCFullYear()
+      const currentYear = getYearAndMonth(Date.now(), timeZone).year
       const years: Array<{
         isFolder: true
         icon: 'folder'

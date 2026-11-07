@@ -8486,7 +8486,6 @@ __metadata:
     "@types/express-session": "npm:^1.19.0"
     "@types/http-proxy": "npm:^1.17.17"
     "@types/jsonwebtoken": "npm:^9.0.10"
-    "@types/lodash": "npm:^4.17.25"
     "@types/mime-types": "npm:^3.0.1"
     "@types/morgan": "npm:^1.9.10"
     "@types/node": "npm:^22.20.1"
@@ -8501,7 +8500,6 @@ __metadata:
     express: "npm:^5.2.1"
     express-prom-bundle: "npm:^8.0.0"
     express-session: "npm:^1.19.0"
-    fast-safe-stringify: "npm:^2.1.1"
     formdata-node: "npm:^6.0.3"
     got: "npm:^13.0.0"
     grant: "npm:^5.4.24"
@@ -8509,9 +8507,7 @@ __metadata:
     ioredis: "npm:^5.11.1"
     ipaddr.js: "npm:^2.4.0"
     jsonwebtoken: "npm:^9.0.3"
-    lodash: "npm:^4.18.1"
     mime-types: "npm:^3.0.2"
-    moment-timezone: "npm:^0.6.5"
     morgan: "npm:^1.12.0"
     nock: "npm:^14.0.16"
     node-fetch: "npm:^3.3.2"
@@ -17642,22 +17638,6 @@ __metadata:
   dependencies:
     minipass: "npm:^7.1.2"
   checksum: 10/f47365cc2cb7f078cbe7e046eb52655e2e7e97f8c0a9a674f4da60d94fb0624edfcec9b5db32e8ba5a99a5f036f595680ae6fe02a262beaa73026e505cc52f99
-  languageName: node
-  linkType: hard
-
-"moment-timezone@npm:^0.6.5":
-  version: 0.6.5
-  resolution: "moment-timezone@npm:0.6.5"
-  dependencies:
-    moment: "npm:^2.29.4"
-  checksum: 10/2ab437fa7ac3468eb8eaef968f5c3896ec429b8b9aa4b04cba1d36c368988f684afb7a0f0450621667916705608cf0e898050bb77a17438bd1afb5a7662d129e
-  languageName: node
-  linkType: hard
-
-"moment@npm:^2.29.4":
-  version: 2.31.0
-  resolution: "moment@npm:2.31.0"
-  checksum: 10/fd3708d46f820c64fe1e064a60747533a55ee0aefd944490e18f08b2a83a5b6418bb4f42e1de47ef1f1a29f450c7ac41edd1fa6f940db30ded247c9717301b9f
   languageName: node
   linkType: hard
 

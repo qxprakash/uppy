@@ -424,3 +424,90 @@ export async function mapConcurrently<T, R>(
   )
   return results
 }
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (value === null || typeof value !== 'object') return false
+  const proto = Object.getPrototypeOf(value)
+  return proto === null || proto === Object.prototype
+}
+
+/**
+ * `merging` maps the source objects being merged (the current path) to their
+ * copies, so a source that refers back to itself gets a copy that refers back
+ * to the copy, as with lodash.
+ */
+function mergeInto(
+  target: object,
+  source: object,
+  merging: Map<object, object>,
+): object {
+  const out = target as Record<string, unknown>
+  for (const [key, value] of Object.entries(source)) {
+    if (key === '__proto__') continue
+    const existing = out[key]
+    if (Array.isArray(value) || isPlainObject(value)) {
+      let copy = merging.get(value)
+      if (!copy) {
+        if (Array.isArray(value)) {
+          copy = Array.isArray(existing) ? existing : []
+        } else {
+          copy =
+            typeof existing === 'object' && existing !== null ? existing : {}
+        }
+        merging.set(value, copy)
+        mergeInto(copy, value, merging)
+        merging.delete(value)
+      }
+      out[key] = copy
+    } else if (value !== undefined || !(key in out)) {
+      out[key] = value
+    }
+  }
+  return target
+}
+
+/**
+ * Deep-merge `sources` into `target`, left to right, like lodash's `merge`:
+ * plain objects are merged key by key and arrays index by index (both copied,
+ * not shared with the source), a source value of `undefined` does not replace
+ * an existing one, and anything else (functions, RegExps, class instances) is
+ * assigned as it is.
+ */
+export function merge<T extends object, S1, S2>(
+  target: T,
+  source1: S1,
+  source2: S2,
+): T & S1 & S2
+export function merge<T extends object, S1, S2, S3>(
+  target: T,
+  source1: S1,
+  source2: S2,
+  source3: S3,
+): T & S1 & S2 & S3
+export function merge(target: object, ...sources: unknown[]): object {
+  for (const source of sources) {
+    if (typeof source === 'object' && source !== null) {
+      mergeInto(target, source, new Map())
+    }
+  }
+  return target
+}
+
+/**
+ * Returns a function that calls `fn` at most once every `wait` ms: a call goes
+ * through when `wait` ms have passed since the last call that did, and is
+ * dropped otherwise (lodash's `throttle` with `trailing: false`).
+ */
+export function throttle<A extends unknown[]>(
+  fn: (...args: A) => void,
+  wait: number,
+): (...args: A) => void {
+  let lastCall: number | undefined
+  return (...args) => {
+    const now = Date.now()
+    if (lastCall === undefined || now - lastCall >= wait || now < lastCall) {
+      lastCall = now
+      fn(...args)
+    }
+  }
+}
