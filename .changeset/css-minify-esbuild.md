@@ -17,4 +17,4 @@
 "uppy": patch
 ---
 
-Minified CSS is now produced by esbuild instead of cssnano: same styles, slightly different bytes. For Safari and iOS, the minified files now also include the `-webkit-` prefixed `appearance` and `user-select` declarations.
+Minified CSS is now produced by esbuild instead of cssnano: same styles, slightly different bytes (up to about 6% larger per package, under 2% for the `uppy` bundle). For Safari and iOS, the minified files now also include the `-webkit-` prefixed `appearance` and `user-select` declarations.

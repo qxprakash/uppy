@@ -30,7 +30,7 @@
   ],
   "scripts": {
     "build": "tsc --build tsconfig.build.json",
-    "build:css": "tailwindcss -m -i ./src/input.css -o ./dist/styles.css && esbuild ../image-editor/src/cropper.scss --loader:.scss=css --minify --sourcemap --sources-content=false --target=chrome153,edge153,firefox156,safari26.6,ios13.4 --log-level=warning --outfile=./dist/image-editor.css",
+    "build:css": "tailwindcss -m -i ./src/input.css -o ./dist/styles.css && esbuild ../image-editor/src/cropper.scss --loader:.scss=css --minify --sourcemap --target=chrome153,edge153,firefox156,safari26.6,ios13.4 --log-level=warning --outfile=./dist/image-editor.css",
     "migrate": "node migrate.mjs",
     "typecheck": "tsc --build"
   },
