@@ -1,10 +1,7 @@
 /* global AggregateError */
 
 import throttle from 'lodash/throttle.js'
-import ee from 'namespace-emitter'
-import { nanoid } from 'nanoid/non-secure'
 import type { h } from 'preact'
-import type { Promisable } from 'type-fest'
 import packageJson from '../package.json' with { type: 'json' }
 import type BasePlugin from './BasePlugin.js'
 import type Provider from './companion-client/Provider.js'
@@ -21,6 +18,7 @@ import {
 } from './Restricter.js'
 import DefaultStore, { type Store } from './store/index.js'
 import supportsUploadProgress from './supportsUploadProgress.js'
+import createEmitter from './utils/createEmitter.js'
 import type {
   Body,
   CompanionFile,
@@ -45,6 +43,8 @@ import {
   Translator,
   toError,
 } from './utils/index.js'
+import nanoid from './utils/nanoid.js'
+import type { Promisable } from './utils/Promisable.js'
 
 export type Processor = (
   fileIDs: string[],
@@ -457,7 +457,7 @@ export class Uppy<
 
   #storeUnsubscribe
 
-  #emitter = ee()
+  #emitter = createEmitter()
 
   #preProcessors: Set<Processor> = new Set()
 

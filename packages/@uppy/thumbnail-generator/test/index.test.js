@@ -1,13 +1,23 @@
 import { UIPlugin } from '@uppy/core'
 import ThumbnailGeneratorPlugin from '@uppy/thumbnail-generator'
-import emitter from 'namespace-emitter'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const delay = (duration) =>
   new Promise((resolve) => setTimeout(resolve, duration))
 
 function MockCore() {
-  const core = emitter()
+  const listeners = {}
+  const core = {
+    on(event, fn) {
+      listeners[event] = [...(listeners[event] ?? []), fn]
+    },
+    off(event, fn) {
+      listeners[event] = listeners[event]?.filter((f) => f !== fn)
+    },
+    emit(event, ...args) {
+      for (const fn of listeners[event] ?? []) fn(...args)
+    },
+  }
   const files = {}
   core.state = {
     files,
