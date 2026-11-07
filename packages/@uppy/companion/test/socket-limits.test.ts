@@ -6,8 +6,6 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
 import WebSocket from 'ws'
 import { setDefaultEnv } from './mockserver.js'
 
-vi.mock('express-prom-bundle')
-
 let server: Server
 let port: number
 

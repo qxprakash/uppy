@@ -2,8 +2,6 @@ import request from 'supertest'
 import { describe, expect, test, vi } from 'vitest'
 import { getServer } from './mockserver.js'
 
-vi.mock('express-prom-bundle')
-
 vi.mock('../dist/server/helpers/jwt.js', () => {
   return {
     generateEncryptedToken: () => 'dummy token',

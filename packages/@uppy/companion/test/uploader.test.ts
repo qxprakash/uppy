@@ -31,7 +31,6 @@ import standalone from '../dist/standalone/index.js'
 import * as socketClient from './mocksocket.js'
 
 vi.mock('tus-js-client')
-vi.mock('express-prom-bundle')
 
 function getTusMockLastUploadFile(): unknown {
   const getter = Reflect.get(tusClient, '__getLastUploadFile')

@@ -3,8 +3,6 @@ import request from 'supertest'
 import { describe, expect, test, vi } from 'vitest'
 import * as tokenService from '../dist/server/helpers/jwt.js'
 
-vi.mock('express-prom-bundle')
-
 const mintedToken = (location: string | undefined) =>
   decodeURIComponent(
     new URL(location ?? '', 'http://x').searchParams.get('uppyAuthToken') ?? '',

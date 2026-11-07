@@ -1,15 +1,13 @@
 import { createServer } from 'node:http'
 import express from 'express'
 import request from 'supertest'
-import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { defaultOptions } from '../dist/config/companion.js'
 import * as tokenService from '../dist/server/helpers/jwt.js'
 import * as oAuthState from '../dist/server/helpers/oauth-state.js'
 import { gentleVerifyToken, verifyToken } from '../dist/server/middlewares.js'
 import { getCredentialsOverrideMiddleware } from '../dist/server/provider/credentials.js'
 import Provider from '../dist/server/provider/Provider.js'
-
-vi.mock('express-prom-bundle')
 
 class DriveProvider extends Provider {
   static override get oauthProvider(): string {

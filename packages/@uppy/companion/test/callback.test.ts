@@ -4,8 +4,6 @@ import * as tokenService from '../dist/server/helpers/jwt.js'
 
 const secret = 'secret'
 
-vi.mock('express-prom-bundle')
-
 describe('test authentication callback', () => {
   test('authentication callback redirects to send-token url', async () => {
     const { getServer } = await import('./mockserver.js')

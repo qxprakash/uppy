@@ -1,9 +1,7 @@
 import nock from 'nock'
 import request from 'supertest'
-import { afterAll, afterEach, beforeEach, describe, test, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, test } from 'vitest'
 import { getServer } from './mockserver.js'
-
-vi.mock('express-prom-bundle')
 
 afterEach(() => {
   nock.cleanAll()

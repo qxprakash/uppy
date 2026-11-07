@@ -1,9 +1,7 @@
 import { gzipSync } from 'node:zlib'
 import request from 'supertest'
-import { describe, expect, test, vi } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { getServer } from './mockserver.js'
-
-vi.mock('express-prom-bundle')
 
 // body-parser inflates compressed request bodies before applying its size
 // limit, so a 140-byte gzip form could become a 600 KB session record or a

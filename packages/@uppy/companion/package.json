@@ -45,7 +45,6 @@
     "content-disposition": "^2.0.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "express-prom-bundle": "^8.0.0",
     "express-session": "^1.19.0",
     "fast-safe-stringify": "^2.1.1",
     "formdata-node": "^6.0.3",

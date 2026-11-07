@@ -4,7 +4,6 @@ import { afterAll, afterEach, describe, expect, test, vi } from 'vitest'
 
 import { getServer } from './mockserver.js'
 
-vi.mock('express-prom-bundle')
 vi.mock('tus-js-client')
 vi.mock('../dist/server/helpers/request.js', async () => {
   return {

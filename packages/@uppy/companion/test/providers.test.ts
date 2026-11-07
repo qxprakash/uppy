@@ -26,7 +26,6 @@ import { getServer } from './mockserver.js'
 
 const { localZoomKey, localZoomSecret } = zoomExpects
 
-vi.mock('express-prom-bundle')
 vi.mock('tus-js-client')
 
 vi.mock('../dist/server/helpers/oauth-state.js', async () => ({

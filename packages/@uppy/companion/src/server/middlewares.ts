@@ -1,7 +1,8 @@
+import { finished } from 'node:stream'
 import type { S3Client } from '@aws-sdk/client-s3'
 import corsImport from 'cors'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
-import promBundle from 'express-prom-bundle'
+import { collectDefaultMetrics, Gauge, Histogram, register } from 'prom-client'
 
 import packageJson from '../../package.json' with { type: 'json' }
 import type { CompanionRuntimeOptions } from '../types/companion-options.js'
@@ -281,38 +282,52 @@ export const cors =
     })(req, res, next)
   }
 
-function hasPromClient(mw: unknown): mw is RequestHandler & {
-  promClient: {
-    collectDefaultMetrics: (opts: unknown) => void
-    Gauge: new (opts: unknown) => { set: (n: number) => void }
-    register: unknown
-  }
-} {
-  return !!mw && typeof mw === 'function' && 'promClient' in mw
-}
-
 export const metrics = ({
   path = undefined,
 }: {
   path?: string
 } = {}): RequestHandler => {
-  const metricsMiddleware = promBundle({
-    includeMethod: true,
-    ...(path && { metricsPath: `${path}/metrics` }),
+  const metricsPath = `${path || ''}/metrics`
+
+  // Metric names, labels and buckets match what express-prom-bundle exposed,
+  // so existing dashboards and alerts keep working.
+  const httpDuration = new Histogram({
+    name: 'http_request_duration_seconds',
+    help: 'duration histogram of http responses labeled with: status_code, method',
+    labelNames: ['status_code', 'method'],
+    buckets: [0.003, 0.03, 0.1, 0.3, 1.5, 10],
   })
-  if (!hasPromClient(metricsMiddleware)) return metricsMiddleware
-  const { promClient } = metricsMiddleware
-  const { collectDefaultMetrics } = promClient
-  collectDefaultMetrics({ register: promClient.register })
+  new Gauge({ name: 'up', help: '1 = up, 0 = not up' }).set(1)
+  collectDefaultMetrics({ register })
 
   // Add version as a prometheus gauge
-  const versionGauge = new promClient.Gauge({
+  const versionGauge = new Gauge({
     name: 'companion_version',
     help: 'npm version as an integer',
   })
   const numberVersion = Number(packageJson.version.replace(/\D/g, ''))
   versionGauge.set(numberVersion)
-  return metricsMiddleware
+
+  return (req, res, next) => {
+    const url = req.originalUrl || req.url
+    if (url === metricsPath || url === `${metricsPath}/`) {
+      register.metrics().then((output) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' })
+        res.end(output)
+      }, next)
+      return
+    }
+
+    const end = httpDuration.startTimer()
+    finished(res, () => {
+      end({
+        // 499: the client closed the connection before a response was sent
+        status_code: res.headersSent ? res.statusCode : 499,
+        method: req.method,
+      })
+    })
+    next()
+  }
 }
 
 export const getCompanionMiddleware = (

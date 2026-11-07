@@ -1,8 +1,6 @@
 import request from 'supertest'
-import { describe, expect, test, vi } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { getServer } from './mockserver.js'
-
-vi.mock('express-prom-bundle')
 
 // The provider param middleware must always call `next()`, so that
 // `hasSessionAndProvider` answers 400 instead of the request hanging.

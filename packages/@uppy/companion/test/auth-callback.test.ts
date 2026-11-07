@@ -24,7 +24,6 @@ let bus: EmitterLike
 let storage: Redis | undefined
 vi.mock('../dist/server/emitter/index.js', () => ({ default: () => bus }))
 vi.mock('../dist/server/redis.js', () => ({ client: () => storage }))
-vi.mock('express-prom-bundle')
 
 const clients: Redis[] = []
 const sockets: WebSocket[] = []

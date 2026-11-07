@@ -1,5 +1,6 @@
 import express from 'express'
 import session, { type Session } from 'express-session'
+import { register } from 'prom-client'
 import { expects as zoomExpects } from './fixtures/zoom.js'
 
 const { localZoomKey, localZoomSecret, localZoomVerificationToken } =
@@ -137,6 +138,9 @@ export const getServerWithEmitter = async (
     },
   )
 
+  // standalone() registers metrics on the global prom-client registry, and a
+  // test file can start several servers.
+  register.clear()
   const { app, emitter } = standalone()
   authServer.use(app)
   return { server: authServer, emitter }

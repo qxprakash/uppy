@@ -2,15 +2,7 @@ import express from 'express'
 import session from 'express-session'
 import nock from 'nock'
 import request from 'supertest'
-import {
-  afterAll,
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-} from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest'
 import * as tokenService from '../dist/server/helpers/jwt.js'
 import * as oAuthState from '../dist/server/helpers/oauth-state.js'
 import { nockZoomRevoke, expects as zoomExpects } from './fixtures/zoom.js'
@@ -18,8 +10,6 @@ import { getServer } from './mockserver.js'
 
 const { remoteZoomKey, remoteZoomSecret, remoteZoomVerificationToken } =
   zoomExpects
-
-vi.mock('express-prom-bundle')
 
 const secret = 'secret'
 

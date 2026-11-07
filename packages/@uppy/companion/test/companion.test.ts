@@ -8,7 +8,6 @@ import * as defaults from './fixtures/constants.js'
 import { nockGoogleDownloadFile } from './fixtures/drive.js'
 import { getServer } from './mockserver.js'
 
-vi.mock('express-prom-bundle')
 vi.mock('tus-js-client')
 
 vi.mock('../dist/server/helpers/oauth-state.js', async () => ({

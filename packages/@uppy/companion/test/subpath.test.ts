@@ -1,8 +1,6 @@
 import request from 'supertest'
-import { it, test, vi } from 'vitest'
+import { it, test } from 'vitest'
 import { getServer } from './mockserver.js'
-
-vi.mock('express-prom-bundle')
 
 it('can be served under a subpath', async () => {
   const server = await getServer({ COMPANION_PATH: '/subpath' })
