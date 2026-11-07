@@ -8,5 +8,6 @@ describe('classNames', () => {
     ).toBe('a b')
     expect(classNames({ x: 1 }, 'y z')).toBe('x y z')
     expect(classNames()).toBe('')
+    expect(classNames(['a', ['b', { c: true }]], 1, [])).toBe('a b c 1')
   })
 })

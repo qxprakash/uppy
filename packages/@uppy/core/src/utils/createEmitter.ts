@@ -45,7 +45,9 @@ export default function createEmitter() {
       }
       // Listeners always get exactly six arguments, as with namespace-emitter.
       args.length = 6
-      for (const fn of listeners) {
+      // Iterate over a snapshot: a listener added during this emit must not
+      // run until the next one.
+      for (const fn of listeners.slice()) {
         if (!fn) break
         fn.event = event
         fn.apply(fn, args)

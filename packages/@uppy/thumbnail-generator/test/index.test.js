@@ -14,6 +14,13 @@ function MockCore() {
     off(event, fn) {
       listeners[event] = listeners[event]?.filter((f) => f !== fn)
     },
+    once(event, fn) {
+      const wrapper = (...args) => {
+        core.off(event, wrapper)
+        fn(...args)
+      }
+      core.on(event, wrapper)
+    },
     emit(event, ...args) {
       for (const fn of listeners[event] ?? []) fn(...args)
     },

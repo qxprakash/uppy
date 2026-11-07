@@ -8,6 +8,6 @@ const alphabet =
  */
 export default function nanoid(size = 21): string {
   let id = ''
-  for (let i = 0; i < size; i++) id += alphabet[(Math.random() * 64) | 0]
+  for (let i = size | 0; i > 0; i--) id += alphabet[(Math.random() * 64) | 0]
   return id
 }

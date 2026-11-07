@@ -55,4 +55,31 @@ describe('createEmitter', () => {
       b.mock.calls.length,
     ]).toEqual([1, 1, 2])
   })
+
+  it('does not call a listener added during an emit until the next emit', () => {
+    const emitter = createEmitter()
+    const calls: string[] = []
+    emitter.on('x', function first() {
+      calls.push('first')
+      emitter.on('x', () => calls.push('added'))
+    })
+    emitter.emit('x')
+    expect(calls).toEqual(['first'])
+    emitter.emit('x')
+    expect(calls).toEqual(['first', 'first', 'added'])
+  })
+
+  it('a listener removed during an emit still runs in that emit, as namespace-emitter did', () => {
+    const emitter = createEmitter()
+    const calls: string[] = []
+    const second = () => calls.push('second')
+    emitter.on('x', () => {
+      calls.push('first')
+      emitter.off('x', second)
+    })
+    emitter.on('x', second)
+    emitter.emit('x')
+    emitter.emit('x')
+    expect(calls).toEqual(['first', 'second', 'first'])
+  })
 })
