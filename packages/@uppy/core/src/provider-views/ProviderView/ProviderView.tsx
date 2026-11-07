@@ -1,4 +1,3 @@
-import debounce from 'lodash/debounce.js'
 import type { h } from 'preact'
 import packageJson from '../../../package.json' with { type: 'json' }
 import { isAuthError } from '../../companion-client/AuthError.js'
@@ -17,6 +16,7 @@ import type {
   ValidateableFile,
 } from '../../index.js'
 import classNames from '../../utils/classNames.js'
+import debounce from '../../utils/debounce.js'
 import ErrorWithCause from '../../utils/ErrorWithCause.js'
 import type { CompanionFile, I18n } from '../../utils/index.js'
 import {

@@ -10,6 +10,11 @@ export { type ClassValue, default as classNames } from './classNames.js'
 export { default as dataURItoBlob } from './dataURItoBlob.js'
 export { default as dataURItoFile } from './dataURItoFile.js'
 
+export {
+  type DebouncedFunction,
+  type DebounceOptions,
+  default as debounce,
+} from './debounce.js'
 export { default as delay } from './delay.js'
 
 export { default as ErrorWithCause } from './ErrorWithCause.js'
@@ -93,6 +98,7 @@ export type {
   OptionalPluralizeLocale,
 } from './Translator.js'
 export { default as Translator } from './Translator.js'
+export { default as throttle } from './throttle.js'
 
 export { default as toArray } from './toArray.js'
 export { default as toError } from './toError.js'

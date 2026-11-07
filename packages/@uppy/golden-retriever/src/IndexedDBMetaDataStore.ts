@@ -1,5 +1,5 @@
 import type { Body, Meta } from '@uppy/core'
-import throttle from 'lodash/throttle.js'
+import { throttle } from '@uppy/core/utils'
 import {
   connect,
   DB_NAME,

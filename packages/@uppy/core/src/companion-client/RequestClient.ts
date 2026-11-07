@@ -1,4 +1,3 @@
-import pRetry, { AbortError } from 'p-retry'
 import packageJson from '../../package.json' with { type: 'json' }
 import type Uppy from '../index.js'
 import type { Body, Meta, RemoteUppyFile, UppyFile } from '../utils/index.js'
@@ -11,6 +10,7 @@ import {
   UserFacingApiError,
 } from '../utils/index.js'
 import type { Promisable } from '../utils/Promisable.js'
+import retry, { AbortError } from '../utils/retry.js'
 import stripTrailingSlash from '../utils/stripTrailingSlash.js'
 import AuthError, { isAuthError } from './AuthError.js'
 
@@ -262,7 +262,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
       const { signal, getQueue } = options || {}
       const queue = getQueue()
 
-      return await pRetry(
+      return await retry(
         () => {
           const queueRemoteUploadAttempt = queue.wrapPromiseFunction(
             async () => {
@@ -313,7 +313,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
       )
     } catch (err) {
       // this is a bit confusing, but note that an error with the `name` prop set to 'AbortError' (from AbortController)
-      // is not the same as `p-retry` `AbortError`
+      // is not the same as the `AbortError` from `../utils/retry.js`
       if (isAbortError(err)) {
         // The file upload was aborted, it’s not an error
         return undefined
@@ -361,7 +361,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
     try {
       return await this.#requestSocketToken({ file, postBody, signal })
     } catch (outerErr) {
-      // throwing AbortError will cause p-retry to stop retrying
+      // throwing AbortError will cause retry() to stop retrying
       if (isAuthError(outerErr)) throw new AbortError(outerErr)
 
       if (!(outerErr instanceof Error) || outerErr.cause == null) throw outerErr
@@ -376,7 +376,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
         throw new AbortError(err)
       }
 
-      // p-retry will retry most other errors,
+      // retry() will retry most other errors,
       // but it will not retry TypeError (except network error TypeErrors)
       throw err
     }
@@ -549,7 +549,7 @@ export default class RequestClient<M extends Meta, B extends Body> {
                 })
               })
 
-            await pRetry(reconnectWebsocket, {
+            await retry(reconnectWebsocket, {
               retries: retryCount,
               signal: socketAbortController.signal,
               onFailedAttempt: () => {

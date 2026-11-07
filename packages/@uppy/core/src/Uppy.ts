@@ -1,6 +1,5 @@
 /* global AggregateError */
 
-import throttle from 'lodash/throttle.js'
 import type { h } from 'preact'
 import packageJson from '../package.json' with { type: 'json' }
 import type BasePlugin from './BasePlugin.js'
@@ -45,6 +44,7 @@ import {
 } from './utils/index.js'
 import nanoid from './utils/nanoid.js'
 import type { Promisable } from './utils/Promisable.js'
+import throttle from './utils/throttle.js'
 
 export type Processor = (
   fileIDs: string[],

@@ -40,9 +40,6 @@
     "./lib/ServiceWorker.js": "./lib/ServiceWorker.js",
     "./package.json": "./package.json"
   },
-  "dependencies": {
-    "lodash": "^4.18.1"
-  },
   "peerDependencies": {
     "@uppy/core": "workspace:^"
   },

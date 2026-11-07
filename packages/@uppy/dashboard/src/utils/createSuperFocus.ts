@@ -1,6 +1,8 @@
-import { FOCUSABLE_ELEMENTS } from '@uppy/core/utils'
-import type { DebouncedFunc } from 'lodash'
-import debounce from 'lodash/debounce.js'
+import {
+  type DebouncedFunction,
+  debounce,
+  FOCUSABLE_ELEMENTS,
+} from '@uppy/core/utils'
 import getActiveOverlayEl from './getActiveOverlayEl.js'
 
 /*
@@ -13,7 +15,7 @@ import getActiveOverlayEl from './getActiveOverlayEl.js'
   2. If there are no [data-uppy-super-focusable] elements yet (or ever) - focuses
      on the first focusable element, but switches focus if superfocusable elements appear on next render.
 */
-export default function createSuperFocus(): DebouncedFunc<
+export default function createSuperFocus(): DebouncedFunction<
   (
     dashboardEl: HTMLElement,
     activeOverlayType?: string | null | undefined,
