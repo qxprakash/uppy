@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import type { PresignedPostOptions } from '@aws-sdk/s3-presigned-post'
-import validator from 'validator'
 import z from 'zod'
 import type { CompanionInitOptions } from '../schemas/companion.js'
+import isURL from '../server/helpers/is-url.js'
 import { isRecord } from '../server/helpers/type-guards.js'
 import { defaultGetKey } from '../server/helpers/utils.js'
 import logger from '../server/logger.js'
@@ -93,17 +93,9 @@ const validateConfigSchema = z.object({
   }),
   periodicPingUrls: z
     .string()
-    .refine(
-      (url) =>
-        validator.isURL(url, {
-          protocols: ['http', 'https'],
-          require_protocol: true,
-          require_tld: false,
-        }),
-      {
-        message: 'periodicPingUrls',
-      },
-    )
+    .refine((url) => isURL(url), {
+      message: 'periodicPingUrls',
+    })
     .array()
     .optional(),
   maxFilenameLength: z.number().positive().optional(),

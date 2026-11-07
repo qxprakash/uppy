@@ -8,7 +8,7 @@ import type { Duplex } from 'node:stream'
 import contentDisposition from 'content-disposition'
 import got, { type Response } from 'got'
 import ipaddr from 'ipaddr.js'
-import validator from 'validator'
+import isURL from './is-url.js'
 
 export const FORBIDDEN_IP_ADDRESS = 'Forbidden IP address'
 
@@ -32,16 +32,7 @@ const validateURL = (
     return false
   }
 
-  const validURLOpts = {
-    protocols: ['http', 'https'],
-    require_protocol: true,
-    require_tld: !allowLocalUrls,
-  }
-  if (!validator.isURL(url, validURLOpts)) {
-    return false
-  }
-
-  return true
+  return isURL(url, { requireTld: !allowLocalUrls })
 }
 
 export { validateURL }

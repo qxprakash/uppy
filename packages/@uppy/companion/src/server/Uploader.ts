@@ -18,10 +18,10 @@ import got from 'got'
 import type { Redis } from 'ioredis'
 import throttle from 'lodash/throttle.js'
 import tus from 'tus-js-client'
-import validator from 'validator'
 import type { CompanionRuntimeOptions } from '../types/companion-options.js'
 import emitter from './emitter/index.js'
 import headerSanitize from './header-blacklist.js'
+import isURL from './helpers/is-url.js'
 import { isRecord, toError } from './helpers/type-guards.js'
 import {
   getBucket,
@@ -207,8 +207,7 @@ function validateOptions(
 
   const normalizeUrl = (url: string | undefined): string | undefined => {
     if (url == null) return undefined
-    const validatorOpts = { require_protocol: true, require_tld: false }
-    if (!validator.isURL(url, validatorOpts)) {
+    if (!isURL(url, { protocols: ['http:', 'https:', 'ftp:'] })) {
       throw new ValidationError('invalid destination url')
     }
     let normalized: string
