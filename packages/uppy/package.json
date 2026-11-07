@@ -72,7 +72,7 @@
   "scripts": {
     "build": "tsc --build tsconfig.build.json && yarn build:bundle",
     "build:bundle": "node build-bundle.mjs",
-    "build:css": "sass --load-path=../../packages src/style.scss dist/uppy.css && postcss dist/uppy.css -u cssnano --map -o dist/uppy.min.css",
+    "build:css": "sass --load-path=../../packages src/style.scss dist/uppy.css && esbuild dist/uppy.css --minify --sourcemap --sources-content=false --target=chrome153,edge153,firefox156,safari26.6,ios13.4 --log-level=warning --outfile=dist/uppy.min.css",
     "typecheck": "tsc --build"
   },
   "devDependencies": {
@@ -80,13 +80,10 @@
     "@npmcli/arborist": "^10.0.1",
     "adm-zip": "^0.6.1",
     "concat-stream": "^2.0.0",
-    "cssnano": "^8.0.1",
     "esbuild": "^0.28.1",
     "mime-types": "^3.0.2",
     "npm-packlist": "^11.1.0",
     "pacote": "^22.0.0",
-    "postcss": "^8.5.23",
-    "postcss-cli": "^11.0.1",
     "sass": "^1.89.2",
     "tar": "^7.5.21",
     "typescript": "^6.0.3"

@@ -45,10 +45,8 @@
   "devDependencies": {
     "@uppy-dev/tsconfig": "workspace:^",
     "@vitest/browser-playwright": "^5.0.3",
-    "cssnano": "^8.0.1",
+    "esbuild": "^0.28.1",
     "playwright": "1.64.0",
-    "postcss": "^8.5.23",
-    "postcss-cli": "^11.0.1",
     "sass": "^1.89.2",
     "typescript": "^6.0.3",
     "vitest": "^5.0.3"
@@ -61,7 +59,7 @@
   },
   "scripts": {
     "build": "tsc --build tsconfig.build.json",
-    "build:css": "sass --load-path=../../ src/style.scss dist/style.css && postcss dist/style.css -u cssnano --map -o dist/style.min.css",
+    "build:css": "sass --load-path=../../ src/style.scss dist/style.css && esbuild dist/style.css --minify --sourcemap --sources-content=false --target=chrome153,edge153,firefox156,safari26.6,ios13.4 --log-level=warning --outfile=dist/style.min.css",
     "typecheck": "tsc --build",
     "test": "vitest run --silent='passed-only'"
   }
