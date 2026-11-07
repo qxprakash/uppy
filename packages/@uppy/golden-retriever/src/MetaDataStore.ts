@@ -83,7 +83,7 @@ export default class MetaDataStore<M extends Meta, B extends Body> {
     this.#saveThrottled =
       this.opts.throttleTime === 0
         ? this.save
-        : throttle(this.save, this.opts.throttleTime, {
+        : throttle(this.save, this.opts.throttleTime ?? 500, {
             leading: true,
             trailing: true,
           })

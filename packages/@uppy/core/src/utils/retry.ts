@@ -7,10 +7,11 @@ import delay from './delay.js'
 export class AbortError extends Error {
   originalError: Error
 
-  constructor(error: Error) {
-    super(error.message)
+  constructor(error: Error | string) {
+    const originalError = typeof error === 'string' ? new Error(error) : error
+    super(originalError.message)
     this.name = 'AbortError'
-    this.originalError = error
+    this.originalError = originalError
   }
 }
 
@@ -71,6 +72,9 @@ export default async function retry<T>(
   fn: (attemptNumber: number) => T | PromiseLike<T>,
   { retries, signal, onFailedAttempt }: RetryOptions,
 ): Promise<T> {
+  if (!(retries >= 0)) {
+    throw new TypeError(`Expected \`retries\` to be a number, got ${retries}`)
+  }
   signal?.throwIfAborted()
 
   for (let attemptNumber = 1; ; attemptNumber++) {

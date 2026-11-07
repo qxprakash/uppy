@@ -37,6 +37,24 @@ describe('retry', () => {
     ])
   })
 
+  it('rejects a missing `retries` instead of retrying forever', async () => {
+    // @ts-expect-error a JS caller may omit it
+    await expect(retry(() => 1, {})).rejects.toThrow(TypeError)
+    await expect(retry(() => 1, { retries: Number.NaN })).rejects.toThrow(
+      TypeError,
+    )
+  })
+
+  it('wraps a string given to AbortError, like p-retry', async () => {
+    const promise = retry(
+      () => {
+        throw new AbortError('stop')
+      },
+      { retries: 3 },
+    )
+    await expect(promise).rejects.toThrow(new Error('stop'))
+  })
+
   it('rejects with the last error after `retries + 1` attempts', async () => {
     const errors: Error[] = []
     const { fn, attempts } = failingTimes(Infinity, () => {

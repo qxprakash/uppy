@@ -15,6 +15,7 @@ import IndexedDBStore, {
   DB_NAME,
   METADATA_STORE_NAME,
 } from '../lib/IndexedDBStore.js'
+import MetaDataStore from '../lib/MetaDataStore.js'
 
 // The recovery snapshot now lives in IndexedDB's `metadata` store; clearing it
 // (plus localStorage for the fallback path) isolates tests from each other.
@@ -348,5 +349,31 @@ describe('Golden retriever', () => {
     expect(successfulFile).toBeDefined()
     // even though the successful file was deleted from store(s), it should not be a ghost
     expect(successfulFile!.isGhost).toBeFalsy()
+  })
+
+  // GoldenRetriever passes `throttleTime: undefined` unless a test sets the
+  // hook, so the store must fall back to its default instead of throttling
+  // with an undefined wait, which once saved only the first state.
+  test('localStorage store saves the last state with the default throttle', async () => {
+    const storeName = 'gr-throttle-default'
+    const store = new MetaDataStore({
+      storeName,
+      expires: 60_000,
+      throttleTime: undefined,
+    } as any)
+    const metadata = (n: number) =>
+      ({
+        currentUploads: {},
+        files: { [`f${n}`]: { id: `f${n}` } },
+        pluginData: {},
+      }) as any
+    store.set(metadata(1))
+    store.set(metadata(2))
+    store.set(metadata(3))
+    await vi.waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem(`uppyState:${storeName}`)!)
+      expect(Object.keys(saved.metadata.files)).toEqual(['f3'])
+    })
+    localStorage.removeItem(`uppyState:${storeName}`)
   })
 })

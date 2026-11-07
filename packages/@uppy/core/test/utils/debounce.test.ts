@@ -85,4 +85,19 @@ describe('throttle', () => {
     vi.advanceTimersByTime(1000)
     expect(times).toEqual([0, 500, 1000, 1500, 2000])
   })
+
+  it('treats a missing or invalid `wait` as 0, like lodash', () => {
+    const spy = vi.fn()
+    // @ts-expect-error a JS caller may omit it
+    const fn = throttle(spy, undefined, { leading: true, trailing: true })
+    fn(1)
+    fn(2)
+    fn(3)
+    expect(spy.mock.calls).toEqual([[1]])
+    vi.advanceTimersByTime(0)
+    expect(spy.mock.calls).toEqual([[1], [3]])
+    vi.advanceTimersByTime(10_000)
+    expect(spy).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(0)
+  })
 })

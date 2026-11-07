@@ -20,8 +20,10 @@ export default function debounce<F extends (...args: any[]) => unknown>(
   wait: number,
   { leading = false, trailing = true, maxWait }: DebounceOptions = {},
 ): DebouncedFunction<F> {
+  // Like lodash: a missing or invalid `wait` means 0.
+  wait = Number(wait) || 0
   const maxing = maxWait !== undefined
-  const maxDelay = Math.max(maxWait ?? 0, wait)
+  const maxDelay = Math.max(Number(maxWait) || 0, wait)
   let lastArgs: Parameters<F> | undefined
   let lastThis: ThisParameterType<F> | undefined
   let lastCallTime: number | undefined
