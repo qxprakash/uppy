@@ -1,14 +1,11 @@
 import { describe, expect, test, vi } from 'vitest'
 import { ProviderApiError } from '../dist/server/provider/error.js'
+import { WebdavHttpError } from '../dist/server/provider/webdav/client.js'
 import WebdavProvider from '../dist/server/provider/webdav/index.js'
 
 const providerUserSession = { webdavUrl: 'https://example.com/webdav/' }
 
-// The `webdav` package's createErrorFromResponse sets both `status` and
-// `response` on every non-2xx response, which is what made the old
-// assign-then-overwrite mapping lose the auth classification.
-const webdavError = (status: number) =>
-  Object.assign(new Error(`HTTP ${status}`), { status, response: { status } })
+const webdavError = (status: number) => new WebdavHttpError(status, 'Error')
 
 const providerRejecting = (status: number) => {
   const provider = new WebdavProvider({ allowLocalUrls: false })

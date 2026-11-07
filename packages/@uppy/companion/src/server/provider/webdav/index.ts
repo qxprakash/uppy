@@ -1,8 +1,4 @@
-import type { Readable } from 'node:stream'
-import fetch, { type RequestInfo, type RequestInit } from 'node-fetch'
-import type { WebDAVClientOptions } from 'webdav'
-import { AuthType, createClient, getPatcher } from 'webdav'
-import { getProtectedHttpAgent, validateURL } from '../../helpers/request.js'
+import { validateURL } from '../../helpers/request.js'
 import { isRecord } from '../../helpers/type-guards.js'
 import logger from '../../logger.js'
 import { ProviderApiError, ProviderAuthError } from '../error.js'
@@ -15,33 +11,15 @@ import Provider, {
   type ProviderLogoutResponse,
   type ProviderSimpleAuthOptions,
 } from '../Provider.js'
+import {
+  createWebdavClient,
+  type WebdavClient,
+  WebdavHttpError,
+} from './client.js'
 
 const defaultDirectory = '/'
 
-/**
- * Upper bound on a WebDAV response that Companion buffers in memory
- * (PROPFIND listings and stat calls). The `webdav` package reads those with
- * `response.text()` after decompression and parses them synchronously, so an
- * anonymous caller pointing simple-auth at a hostile server could inflate a
- * small gzip body into hundreds of megabytes and abort the process.
- * node-fetch enforces `size` only when a body is consumed whole, so file
- * downloads (which stream `response.body`) are not limited by this.
- *
- * The webdav patcher is a package-wide singleton, so this applies to every
- * webdav client in the process, and a later `getPatcher().patch('fetch', …)`
- * by an embedding app would replace it.
- */
-export const MAX_WEBDAV_RESPONSE_BYTES = 5 * 1024 * 1024
-
-getPatcher().patch('fetch', (url: unknown, options: unknown) =>
-  fetch(url as RequestInfo, {
-    ...(options as RequestInit),
-    size: MAX_WEBDAV_RESPONSE_BYTES,
-  }),
-)
-
 type WebdavUserSession = { webdavUrl?: string }
-type WebdavClient = ReturnType<typeof createClient>
 
 type WebdavListItem = {
   isFolder: boolean
@@ -98,17 +76,12 @@ export default class WebdavProvider extends Provider<WebdavUserSession> {
 
       return this.getClientHelper({
         url: `${baseURL.replace('/index.php', '')}/public.php/webdav/`,
-        authType: AuthType.Password,
-        username: publicLinkToken!,
-        password: 'null',
+        basicAuth: { username: publicLinkToken!, password: 'null' },
       })
     }
 
     // normal public WebDAV urls
-    return this.getClientHelper({
-      url: webdavUrl,
-      authType: AuthType.None,
-    })
+    return this.getClientHelper({ url: webdavUrl })
   }
 
   override logout(): ProviderLogoutResponse {
@@ -152,26 +125,16 @@ export default class WebdavProvider extends Provider<WebdavUserSession> {
 
   getClientHelper({
     url,
-    ...options
-  }: { url: string } & WebDAVClientOptions): WebdavClient {
+    basicAuth,
+  }: {
+    url: string
+    basicAuth?: { username: string; password: string } | undefined
+  }): WebdavClient {
     const { allowLocalUrls } = this
     if (!validateURL(url, allowLocalUrls)) {
       throw new Error('invalid webdav url')
     }
-    const HttpAgent = getProtectedHttpAgent({
-      protocol: 'http',
-      allowLocalIPs: allowLocalUrls,
-    })
-    const HttpsAgent = getProtectedHttpAgent({
-      protocol: 'https',
-      allowLocalIPs: allowLocalUrls,
-    })
-
-    return createClient(url, {
-      ...options,
-      httpAgent: new HttpAgent(),
-      httpsAgent: new HttpsAgent(),
-    })
+    return createWebdavClient({ url, basicAuth, allowLocalUrls })
   }
 
   override list({
@@ -202,7 +165,8 @@ export default class WebdavProvider extends Provider<WebdavUserSession> {
 
         let modifiedDate: string | undefined
         try {
-          modifiedDate = new Date(item.lastmod).toISOString()
+          // no date from the server gives the epoch, new Date(0)
+          modifiedDate = new Date(item.lastmod ?? 0).toISOString()
         } catch (_e) {
           // ignore invalid date from server
         }
@@ -243,38 +207,26 @@ export default class WebdavProvider extends Provider<WebdavUserSession> {
       'provider.webdav.download.error',
       async () => {
         const client = await this.getClient({ providerUserSession })
-        const statResult = await client.stat(id, {
+        const stat = await client.stat(id, {
           signal: AbortSignal.timeout(this.requestTimeoutMs),
         })
-        const stat = 'data' in statResult ? statResult.data : statResult
-        // createReadStream() returns a PassThrough before the GET is answered
-        // and reports a refused GET as an 'error' event on it; nothing listens
-        // until the client's progress socket connects, so the event was fatal.
-        // Await the GET instead so a non-2xx rejects here and gets mapped.
-        // Bound only the wait for response headers: a server that accepts the
-        // connection and never answers must not pin the request. The body that
-        // follows is deliberately left unbounded (a real download may be slow),
-        // so clear the timer once headers are in.
+        // Await the GET so a non-2xx (including a 3xx without a Location)
+        // rejects here and gets mapped; the client drops the connection of a
+        // refused GET. Bound only the wait for response
+        // headers: a server that accepts the connection and never answers must
+        // not pin the request. The body that follows is deliberately left
+        // unbounded (a real download may be slow), so clear the timer once
+        // headers are in.
         const ac = new AbortController()
         const timer = setTimeout(() => ac.abort(), this.requestTimeoutMs)
-        let response: Awaited<ReturnType<typeof client.customRequest>>
         try {
-          response = await client.customRequest(`/${id}`, {
-            method: 'GET',
+          const stream = await client.createReadStream(id, {
             signal: ac.signal,
           })
-        } catch (err) {
-          // A refused GET still has its body on the wire, and nothing reads
-          // it: drop the connection rather than let the server trickle on.
-          ac.abort()
-          throw err
+          return { stream, size: stat.size }
         } finally {
           clearTimeout(timer)
         }
-        // webdav types its Response minimally; under Node it is node-fetch's,
-        // whose body is a Readable.
-        const { body } = response as unknown as { body: Readable }
-        return { stream: body, size: stat.size }
       },
     )
   }
@@ -291,12 +243,8 @@ export default class WebdavProvider extends Provider<WebdavUserSession> {
   protected override mapProviderError(err: unknown): unknown {
     const status = isRecord(err) ? err['status'] : undefined
     if (status === 401) return new ProviderAuthError()
-    const response = isRecord(err) ? err['response'] : undefined
-    if (response != null) {
-      return new ProviderApiError(
-        'WebDAV API error',
-        typeof status === 'number' ? status : undefined,
-      )
+    if (err instanceof WebdavHttpError) {
+      return new ProviderApiError('WebDAV API error', err.status)
     }
     return err
   }

@@ -79,6 +79,25 @@ describe('webdav SSRF protection', () => {
   })
 })
 
+describe('webdav URLs with embedded credentials', () => {
+  test('are refused before any request', async () => {
+    const withCredentials = webdavUrl.replace('http://', 'http://u:p@')
+    const p = provider()
+    for (const url of [withCredentials, `${withCredentials}s/token`]) {
+      await expect(
+        p.simpleAuth({
+          requestBody: { form: { webdavUrl: url } },
+          companion: {} as never,
+        }),
+      ).rejects.toThrow(TypeError)
+      await expect(
+        p.list({ providerUserSession: { webdavUrl: url }, query: {} } as never),
+      ).rejects.toThrow(TypeError)
+    }
+    expect(requestCount).toBe(0)
+  })
+})
+
 describe('webdav response bounds', () => {
   test('rejects a PROPFIND body over 5 MiB', async () => {
     const padding = ' '.repeat(6 * 1024 * 1024)
@@ -153,6 +172,23 @@ describe('webdav download', () => {
     await expect(
       p.download({ id: 'a.txt', providerUserSession: { webdavUrl } } as never),
     ).rejects.toThrow(/abort|timed out|timeout/i)
+  })
+
+  test('a stat without a successful propstat is an api error', async () => {
+    handler = (_req, res) => {
+      res.writeHead(207, { 'content-type': 'application/xml' })
+      res.end(
+        multistatus(
+          '<d:response><d:href>/a.txt</d:href><d:propstat><d:prop/>' +
+            '<d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response>',
+        ),
+      )
+    }
+    const err = await provider()
+      .download({ id: 'a.txt', providerUserSession: { webdavUrl } } as never)
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ProviderApiError)
+    expect((err as ProviderApiError).statusCode).toBe(404)
   })
 
   test('rejects a download whose GET is refused', async () => {
