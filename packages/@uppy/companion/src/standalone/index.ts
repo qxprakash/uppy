@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import qs from 'node:querystring'
 import { URL } from 'node:url'
-import RedisStore from 'connect-redis'
 import type { Express, NextFunction, Request, Response } from 'express'
 import express from 'express'
 import type { SessionOptions } from 'express-session'
@@ -13,6 +12,7 @@ import type { EmitterLike } from '../server/emitter/index.js'
 import { isRecord, toError } from '../server/helpers/type-guards.js'
 import logger from '../server/logger.js'
 import * as redis from '../server/redis.js'
+import RedisSessionStore from '../server/redis-session-store.js'
 import {
   buildHelpfulStartupMessage,
   generateSecret,
@@ -165,7 +165,7 @@ export default function server(
     redisOptions: companionOptions.redisOptions,
   })
   if (redisClient) {
-    sessionOptions.store = new RedisStore({
+    sessionOptions.store = new RedisSessionStore({
       client: redisClient,
       prefix:
         process.env['COMPANION_REDIS_EXPRESS_SESSION_PREFIX'] ||

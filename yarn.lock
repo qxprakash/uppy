@@ -8494,7 +8494,6 @@ __metadata:
     "@types/validator": "npm:^13.15.10"
     "@types/ws": "npm:^8.18.1"
     "@uppy-dev/tsconfig": "workspace:^"
-    connect-redis: "npm:^7.1.1"
     content-disposition: "npm:^2.0.1"
     cors: "npm:^2.8.6"
     execa: "npm:^10.0.0"
@@ -11330,15 +11329,6 @@ __metadata:
   version: 2.0.0
   resolution: "connect-history-api-fallback@npm:2.0.0"
   checksum: 10/3b26bf4041fdb33deacdcb3af9ae11e9a0b413fb14c95844d74a460b55e407625b364955dcf965c654605cde9d24ad5dad423c489aa430825aab2035859aba0c
-  languageName: node
-  linkType: hard
-
-"connect-redis@npm:^7.1.1":
-  version: 7.1.1
-  resolution: "connect-redis@npm:7.1.1"
-  peerDependencies:
-    express-session: ">=1"
-  checksum: 10/1a0801356783c977c6467eea5bee1e91690c7ca62b6b699cf6de0aedbeb0e481eeacc32f372eda6530bdf3867259b7230bc00cf13b295abe9349aaa50fe0c8fb
   languageName: node
   linkType: hard
 

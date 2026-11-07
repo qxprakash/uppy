@@ -477,8 +477,7 @@ using many instances. See [Running many instances](#running-many-instances).
 
 #### `COMPANION_REDIS_EXPRESS_SESSION_PREFIX`
 
-Set a custom prefix for redis keys created by
-[connect-redis](https://github.com/tj/connect-redis). Defaults to
+Set a custom prefix for the redis keys that hold express sessions. Defaults to
 `companion-session:`. Sessions are used for storing authentication state and for
 allowing thumbnails to be loaded by the browser via Companion and for OAuth2.
 See also `COMPANION_REDIS_PUBSUB_SCOPE`.
