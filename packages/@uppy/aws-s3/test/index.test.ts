@@ -821,10 +821,8 @@ describe('AwsS3', () => {
       expect(result?.successful).toHaveLength(0)
     })
 
-    test('skips a file removed by an upload-start listener', async ({
-      worker,
-    }) => {
-      const { signRequest, registerHandlers } = createMultipartMocks(worker)
+    test('skips a file removed by an upload-start listener', async () => {
+      const { signRequest, registerHandlers } = createMultipartMocks()
       registerHandlers()
 
       const core = new Core().use(AwsS3, {
@@ -846,10 +844,8 @@ describe('AwsS3', () => {
       expect(signRequest).not.toHaveBeenCalled()
     })
 
-    test('uses file changes made by an upload-start listener', async ({
-      worker,
-    }) => {
-      const { signRequest, registerHandlers } = createMultipartMocks(worker)
+    test('uses file changes made by an upload-start listener', async () => {
+      const { signRequest, registerHandlers } = createMultipartMocks()
       registerHandlers()
 
       const core = new Core().use(AwsS3, {
@@ -907,15 +903,15 @@ describe('AwsS3', () => {
   })
 
   describe('concurrency', { timeout: 15_000 }, () => {
-    test('uploads parts in parallel, bounded by limit', async ({ worker }) => {
-      const { signRequest, registerHandlers } = createMultipartMocks(worker)
+    test('uploads parts in parallel, bounded by limit', async () => {
+      const { signRequest, registerHandlers } = createMultipartMocks()
       registerHandlers()
 
       const held: (() => void)[] = []
       let inFlight = 0
       let peak = 0
       let completedParts: number[] = []
-      worker.use(
+      network.use(
         // Records the part list sent to CompleteMultipartUpload, then falls
         // through to the handler installed above.
         http.post(s3Url, async ({ request }) => {
@@ -970,10 +966,8 @@ describe('AwsS3', () => {
       expect(completedParts).toEqual([1, 2, 3])
     })
 
-    test('a hung signer does not pin a queue slot after cancel', async ({
-      worker,
-    }) => {
-      const { signRequest, registerHandlers } = createMultipartMocks(worker)
+    test('a hung signer does not pin a queue slot after cancel', async () => {
+      const { signRequest, registerHandlers } = createMultipartMocks()
       registerHandlers()
       signRequest.mockImplementationOnce(() => new Promise(() => {}))
 
@@ -1007,12 +1001,12 @@ describe('AwsS3', () => {
       expect(result?.successful).toHaveLength(1)
     })
 
-    test('a failed part aborts its in-flight siblings', async ({ worker }) => {
-      const { signRequest, registerHandlers } = createMultipartMocks(worker)
+    test('a failed part aborts its in-flight siblings', async () => {
+      const { signRequest, registerHandlers } = createMultipartMocks()
       registerHandlers()
 
       const held: { part: string; release: () => void }[] = []
-      worker.use(
+      network.use(
         http.put(s3Url, async ({ request }) => {
           const part = new URL(request.url).searchParams.get('partNumber')!
           await new Promise<void>((release) => held.push({ part, release }))
@@ -1057,17 +1051,15 @@ describe('AwsS3', () => {
       expect(partUploaded).not.toHaveBeenCalled()
     })
 
-    test('pause then immediate resume does not abort the new attempt', async ({
-      worker,
-    }) => {
+    test('pause then immediate resume does not abort the new attempt', async () => {
       const { signRequest, operations, registerHandlers } =
-        createMultipartMocks(worker)
+        createMultipartMocks()
       registerHandlers()
 
       // Holds the first attempt's two parts; the pause aborts those fetches,
       // so they are never released. The resumed attempt's parts pass through.
       const held: (() => void)[] = []
-      worker.use(
+      network.use(
         http.put(s3Url, async () => {
           if (held.length < 2) {
             await new Promise<void>((resolve) => held.push(resolve))
@@ -1103,10 +1095,8 @@ describe('AwsS3', () => {
       expect(operations.filter((o) => o === 'listParts')).toHaveLength(1)
     })
 
-    test('a retry started from an upload-error listener stays abortable', async ({
-      worker,
-    }) => {
-      const { signRequest, registerHandlers } = createMultipartMocks(worker)
+    test('a retry started from an upload-error listener stays abortable', async () => {
+      const { signRequest, registerHandlers } = createMultipartMocks()
       registerHandlers()
       signRequest
         .mockRejectedValueOnce(new Error('first attempt fails'))
@@ -1138,10 +1128,8 @@ describe('AwsS3', () => {
       await expect(retry).resolves.toBeDefined()
     })
 
-    test('removing the plugin mid-upload settles the upload as failed', async ({
-      worker,
-    }) => {
-      const { signRequest, registerHandlers } = createMultipartMocks(worker)
+    test('removing the plugin mid-upload settles the upload as failed', async () => {
+      const { signRequest, registerHandlers } = createMultipartMocks()
       registerHandlers({ hangNonCreate: true })
 
       const core = new Core().use(AwsS3, {
