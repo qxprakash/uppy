@@ -169,6 +169,9 @@ export default class AwsS3<M extends Meta, B extends Body> extends BasePlugin<
           )
         }
         uploader.abort()
+        // abort() deletes the multipart upload in S3, so a retry of this file
+        // must not try to resume it.
+        if (file) this.uppy.setFileState(fileId, { s3Multipart: undefined })
       }
     }
   }

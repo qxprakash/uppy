@@ -1153,6 +1153,37 @@ describe('AwsS3', () => {
       expect(result?.successful).toHaveLength(0)
       expect(result?.failed).toHaveLength(1)
     })
+
+    test('removing the plugin mid-multipart drops the resume state it aborted', async () => {
+      const { signRequest, operations, registerHandlers } =
+        createMultipartMocks()
+      registerHandlers({ hangNonCreate: true })
+
+      const core = new Core().use(AwsS3, {
+        s3Endpoint: 'https://companion.example.com',
+        region: 'us-east-1',
+        signRequest,
+        shouldUseMultipart: true,
+      })
+      const fileId = core.addFile({
+        source: 'test',
+        name: 'big.dat',
+        type: 'application/octet-stream',
+        data: new File([new Uint8Array(6 * MB)], 'big.dat'),
+      })
+
+      const uploadPromise = core.upload()
+      await vi.waitFor(() =>
+        expect(core.getFile(fileId).s3Multipart).toBeDefined(),
+      )
+      core.removePlugin(core.getPlugin('AwsS3')!)
+      await uploadPromise
+
+      // The upload is gone in S3, so a retry has to start a new one.
+      expect(core.getFile(fileId).s3Multipart).toBeUndefined()
+      // The abort request is sent without being awaited.
+      await vi.waitFor(() => expect(operations).toContain('abortMultipart'))
+    })
   })
 
   describe('Golden Retriever resume state (s3Multipart)', () => {
