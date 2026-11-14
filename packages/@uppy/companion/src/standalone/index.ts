@@ -142,13 +142,15 @@ export default function server(
     return '-'
   })
 
-  // The same security headers helmet's frameguard, xssFilter, noSniff and
-  // ieNoOpen middlewares used to set.
   router.use((_req, res, next) => {
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN')
-    res.setHeader('X-XSS-Protection', '0')
-    res.setHeader('X-Content-Type-Options', 'nosniff')
-    res.setHeader('X-Download-Options', 'noopen')
+    // Only pages of the same origin may show Companion in a frame.
+    res.setHeader('x-frame-options', 'SAMEORIGIN')
+    // Turn off the XSS filter of old browsers, which could itself be abused.
+    res.setHeader('x-xss-protection', '0')
+    // Browsers must use the declared content type, not guess one.
+    res.setHeader('x-content-type-options', 'nosniff')
+    // Old Internet Explorer must not open downloads in the site's context.
+    res.setHeader('x-download-options', 'noopen')
     next()
   })
 

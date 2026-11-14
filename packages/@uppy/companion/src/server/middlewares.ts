@@ -1,4 +1,5 @@
 import type { S3Client } from '@aws-sdk/client-s3'
+import { parse as parseCookies } from 'cookie'
 import corsImport from 'cors'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 import promBundle from 'express-prom-bundle'
@@ -182,32 +183,11 @@ export const gentleVerifyToken: RequestHandler = (req, _res, next) => {
 }
 
 /**
- * Set `req.cookies` from the Cookie header, as cookie-parser does without a
- * secret: the first value for a name wins, surrounding quotes are dropped and
- * values are URI-decoded when possible. Values always stay strings. A map set
- * earlier, e.g. by the cookie parser of an app embedding Companion, is kept.
+ * Set `req.cookies` from the Cookie header. A map set earlier, e.g. by the
+ * cookie parser of an app embedding Companion, is kept.
  */
 export const cookies: RequestHandler = (req, _res, next) => {
-  if (req.cookies) {
-    next()
-    return
-  }
-  const parsed: Record<string, string> = Object.create(null)
-  const trim = (s: string) => s.replace(/^[ \t]+|[ \t]+$/g, '')
-  for (const pair of req.headers.cookie?.split(';') ?? []) {
-    const eq = pair.indexOf('=')
-    const name = trim(pair.slice(0, eq))
-    if (eq === -1 || !name || name in parsed) continue
-    let value = trim(pair.slice(eq + 1))
-    if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1)
-    try {
-      value = decodeURIComponent(value)
-    } catch {
-      // keep the raw value, like cookie-parser
-    }
-    parsed[name] = value
-  }
-  req.cookies = parsed
+  req.cookies ??= parseCookies(req.headers.cookie ?? '')
   next()
 }
 

@@ -23,3 +23,19 @@ test('parses the Cookie header when there is no map yet', () => {
     b: 'x y',
   })
 })
+
+test('sets an empty map when there is no Cookie header', () => {
+  expect(run({ headers: {} })).toEqual({})
+})
+
+test('leaves JSON cookie values as strings', () => {
+  expect(run({ headers: { cookie: 'a=j%3A%7B%22b%22%3A1%7D' } })).toEqual({
+    a: 'j:{"b":1}',
+  })
+})
+
+test('parses a long run of whitespace in linear time', () => {
+  const start = performance.now()
+  run({ headers: { cookie: `a=b${' '.repeat(16_000)}c` } })
+  expect(performance.now() - start).toBeLessThan(50)
+})

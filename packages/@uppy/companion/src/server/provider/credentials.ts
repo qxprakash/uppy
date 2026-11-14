@@ -13,13 +13,14 @@ import { ProviderApiError, parseHttpError } from './error.js'
 import type Provider from './Provider.js'
 
 /** Escape text for HTML element content or quoted attribute values. */
-const htmlEscape = (string: string): string =>
-  string
+function htmlEscape(string: string): string {
+  return string
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+}
 
 /**
  * @param url
