@@ -158,6 +158,92 @@ describe('uploader/ThumbnailGeneratorPlugin', () => {
       core.removeFile(fileId1)
       expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1)
     })
+
+    it('skips a queued file that is gone from state and keeps going', async () => {
+      using core = new Uppy()
+      const plugin = new ThumbnailGeneratorPlugin(core)
+      plugin.install()
+      vi.spyOn(plugin, 'createThumbnail').mockResolvedValue('thumbnail')
+      const allGenerated = vi.fn()
+      core.on('thumbnail:all-generated', allGenerated)
+
+      core.addFile({ name: 'bar.jpg', type: 'image/jpeg', data: new Blob() })
+      const fileId2 = core.addFile({
+        name: 'bar2.jpg',
+        type: 'image/jpeg',
+        data: new Blob(),
+      })
+      expect(plugin.queue).toEqual([fileId2])
+      // Dropped without a `file-removed` event, the way `uppy.clear()` does.
+      const { [fileId2]: _removed, ...files } = core.getState().files
+      core.setState({ files })
+      await delay(0)
+
+      expect(plugin.createThumbnail).toHaveBeenCalledTimes(1)
+      expect(plugin.queueProcessing).toBe(false)
+      expect(allGenerated).toHaveBeenCalledOnce()
+
+      core.addFile({ name: 'bar3.jpg', type: 'image/jpeg', data: new Blob() })
+      await delay(0)
+      expect(plugin.createThumbnail).toHaveBeenCalledTimes(2)
+    })
+
+    it('revokes the thumbnail of a file removed while it was generated', async () => {
+      using core = new Uppy()
+      const plugin = new ThumbnailGeneratorPlugin(core)
+      plugin.install()
+      let finish!: (url: string) => void
+      vi.spyOn(plugin, 'createThumbnail').mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+      )
+      using revoke = vi.spyOn(URL, 'revokeObjectURL')
+      const generated = vi.fn()
+      const failed = vi.fn()
+      core.on('thumbnail:generated', generated)
+      core.on('thumbnail:error', failed)
+
+      const fileId = core.addFile({
+        name: 'bar.jpg',
+        type: 'image/jpeg',
+        data: new Blob(),
+      })
+      core.removeFile(fileId)
+      finish('blob:thumbnail')
+      await delay(0)
+
+      expect(revoke).toHaveBeenCalledExactlyOnceWith('blob:thumbnail')
+      expect(generated).not.toHaveBeenCalled()
+      expect(failed).not.toHaveBeenCalled()
+      expect(plugin.queueProcessing).toBe(false)
+    })
+
+    it('emits no thumbnail:error for a file removed while its thumbnail failed', async () => {
+      using core = new Uppy()
+      const plugin = new ThumbnailGeneratorPlugin(core)
+      plugin.install()
+      let fail!: (err: Error) => void
+      vi.spyOn(plugin, 'createThumbnail').mockReturnValue(
+        new Promise((_, reject) => {
+          fail = reject
+        }),
+      )
+      const failed = vi.fn()
+      core.on('thumbnail:error', failed)
+
+      const fileId = core.addFile({
+        name: 'bar.jpg',
+        type: 'image/jpeg',
+        data: new Blob(),
+      })
+      core.removeFile(fileId)
+      fail(new Error('Could not create thumbnail'))
+      await delay(0)
+
+      expect(failed).not.toHaveBeenCalled()
+      expect(plugin.queueProcessing).toBe(false)
+    })
   })
 
   describe('events', () => {

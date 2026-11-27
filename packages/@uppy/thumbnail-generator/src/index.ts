@@ -315,13 +315,14 @@ export default class ThumbnailGenerator<
     this.queueProcessing = true
     while (this.queue.length > 0) {
       const current = this.uppy.getFile(this.queue.shift() as string)
-      if (!current) {
-        this.uppy.log(
-          '[ThumbnailGenerator] file was removed before a thumbnail could be generated, but not removed from the queue. This is probably a bug',
-          'error',
-        )
-      }
-      await this.requestThumbnail(current)
+      // `uppy.clear()` drops files without a `file-removed` event, so they
+      // can still be queued.
+      if (!current) continue
+      // requestThumbnail handles its own errors. This only catches a throwing
+      // `thumbnail:error` listener, so the queue still finishes.
+      await this.requestThumbnail(current).catch((err) => {
+        this.uppy.log(err, 'error')
+      })
     }
     this.queueProcessing = false
     this.uppy.log('[ThumbnailGenerator] Emptied thumbnail queue')
@@ -336,6 +337,12 @@ export default class ThumbnailGenerator<
           this.opts.thumbnailWidth,
           this.opts.thumbnailHeight,
         )
+        // The file was removed while its thumbnail was generated: nothing
+        // will show or revoke this URL.
+        if (!this.uppy.getFile(file.id)) {
+          URL.revokeObjectURL(preview)
+          return
+        }
         this.setPreviewURL(file.id, preview)
         this.uppy.log(`[ThumbnailGenerator] Generated thumbnail for ${file.id}`)
         this.uppy.emit(
@@ -344,6 +351,8 @@ export default class ThumbnailGenerator<
           preview,
         )
       } catch (err) {
+        // A removed file has nobody waiting for its thumbnail.
+        if (!this.uppy.getFile(file.id)) return
         this.uppy.log(
           `[ThumbnailGenerator] Failed thumbnail for ${file.id}:`,
           'warning',
